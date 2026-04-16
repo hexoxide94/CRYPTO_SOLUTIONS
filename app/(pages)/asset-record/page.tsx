@@ -6,18 +6,25 @@ import { X, Plus, ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 // ─── 상수 ──────────────────────────────────────────────────────
-const OVERSEAS_EXCHANGES = ["OKX", "BITGET", "BINANCE", "DIGIFINEX", "BYBIT", "BINGX", "POLYMARKET"];
-const DOMESTIC_EXCHANGES = ["업비트", "빗썸", "코인원", "코빗"];
-const CASH_TYPES         = ["카카오뱅크", "하나은행", "국민은행", "현금", "빚", "직접입력"];
+const OVERSEAS_EXCHANGES = ["OKX", "BITGET", "BINANCE", "DIGIFINEX", "BYBIT", "BINGX", "POLYMARKET", "직접입력"];
+const DOMESTIC_EXCHANGES = ["업비트", "빗썸", "코인원", "코빗", "직접입력"];
+
+const CASH_CATEGORIES = ["은행", "증권사", "페이", "직접입력"];
+const CASH_SUBS: Record<string, string[]> = {
+  "은행":    ["하나은행", "신한은행", "카카오뱅크", "케이뱅크", "국민은행", "우리은행", "농협", "토스뱅크", "직접입력"],
+  "증권사":  ["키움증권", "나무증권", "신한증권", "하나증권", "한국투자", "KB증권", "대신증권", "직접입력"],
+  "페이":    ["카카오페이", "네이버페이", "토스", "직접입력"],
+  "직접입력": [],
+};
 
 // ─── 타입 ──────────────────────────────────────────────────────
-interface OverseasEntry { id: string; exchange: string; usdt: string; }
-interface DomesticEntry { id: string; exchange: string; coinAmount: string; deposit: string; }
+interface OverseasEntry { id: string; exchange: string; customExchange: string; usdt: string; }
+interface DomesticEntry { id: string; exchange: string; customExchange: string; coinAmount: string; deposit: string; }
 interface StockEntry    {
   id: string; symbol: string; qty: string;
   price: number | null; priceCurrency: string; loadingPrice: boolean;
 }
-interface CashEntry     { id: string; label: string; type: string; customType: string; amount: string; }
+interface CashEntry     { id: string; category: string; subcategory: string; customText: string; amount: string; }
 
 // ─── 유틸 ──────────────────────────────────────────────────────
 const uid = () => Math.random().toString(36).slice(2);
@@ -35,12 +42,12 @@ function fmtKrw(n: number): string {
   return `${n.toLocaleString()}원`;
 }
 
-const newOverseas = (): OverseasEntry  => ({ id: uid(), exchange: OVERSEAS_EXCHANGES[0], usdt: "" });
-const newDomestic = (): DomesticEntry  => ({ id: uid(), exchange: DOMESTIC_EXCHANGES[0], coinAmount: "", deposit: "" });
+const newOverseas = (): OverseasEntry  => ({ id: uid(), exchange: OVERSEAS_EXCHANGES[0], customExchange: "", usdt: "" });
+const newDomestic = (): DomesticEntry  => ({ id: uid(), exchange: DOMESTIC_EXCHANGES[0], customExchange: "", coinAmount: "", deposit: "" });
 const newStock    = (): StockEntry     => ({ id: uid(), symbol: "", qty: "", price: null, priceCurrency: "KRW", loadingPrice: false });
-const newCash     = (): CashEntry      => ({ id: uid(), label: "", type: CASH_TYPES[0], customType: "", amount: "" });
+const newCash     = (): CashEntry      => ({ id: uid(), category: "은행", subcategory: "하나은행", customText: "", amount: "" });
 
-const LS_KEY = "asset_record_cash";
+const LS_KEY = "asset_record_cash_v2";
 
 // ═══════════════════════════════════════════════════════════════
 export default function AssetRecordPage() {
@@ -139,12 +146,15 @@ export default function AssetRecordPage() {
     setSaving(true);
     const detail = {
       overseas: overseas.map(e => ({
-        exchange: e.exchange, usdt: toNum(e.usdt),
-        usdtPrice: usdtNum, krw: toNum(e.usdt) * usdtNum,
+        exchange: e.exchange === "직접입력" ? e.customExchange : e.exchange,
+        usdt: toNum(e.usdt),
+        usdtPrice: usdtNum,
+        krw: toNum(e.usdt) * usdtNum,
       })),
       domestic: domestic.map(e => ({
-        exchange: e.exchange,
-        coinAmount: toNum(e.coinAmount), deposit: toNum(e.deposit),
+        exchange: e.exchange === "직접입력" ? e.customExchange : e.exchange,
+        coinAmount: toNum(e.coinAmount),
+        deposit: toNum(e.deposit),
       })),
       stocks: stocks.map(e => ({
         symbol: e.symbol, qty: Number(e.qty) || 0,
@@ -154,8 +164,12 @@ export default function AssetRecordPage() {
       irp: irpNum,
       pension: pensionNum,
       cash: cashItems.map(e => ({
-        label: e.label,
-        type: e.type === "직접입력" ? e.customType : e.type,
+        category: e.category,
+        type: e.category === "직접입력"
+          ? e.customText
+          : e.subcategory === "직접입력"
+          ? e.customText
+          : e.subcategory,
         amount: toNum(e.amount),
       })),
     };
@@ -349,7 +363,7 @@ export default function AssetRecordPage() {
 
             <div className="bg-card border border-border rounded-xl px-3 py-2">
               <SectionHeader
-                title="현금·예금"
+                title="현금"
                 total={cashTotal}
                 expanded={cashOpen}
                 onToggle={() => setCashOpen(v => !v)}
@@ -396,9 +410,9 @@ export default function AssetRecordPage() {
           >
             <h2 className="text-base font-bold text-foreground mb-4 text-center">등록 확인</h2>
             <div className="flex flex-col gap-2 mb-5">
-              <ModalRow label="코인 합계"  value={fmtKrw(coinTotal)} />
-              <ModalRow label="주식 합계"  value={fmtKrw(stockTotal)} />
-              <ModalRow label="현금 합계"  value={fmtKrw(cashTotal)} />
+              <ModalRow label="코인"  value={fmtKrw(coinTotal)} />
+              <ModalRow label="주식"  value={fmtKrw(stockTotal)} />
+              <ModalRow label="현금"  value={fmtKrw(cashTotal)} />
               <div className="border-t border-border pt-2 mt-1">
                 <ModalRow label="총합" value={fmtKrw(grandTotal)} bold />
               </div>
@@ -469,7 +483,7 @@ function OverseasCard({ entry, usdtNum, onUpdate, onDelete }: {
       <div className="flex items-center gap-1.5">
         <select
           value={entry.exchange}
-          onChange={e => onUpdate({ exchange: e.target.value })}
+          onChange={e => onUpdate({ exchange: e.target.value, customExchange: "" })}
           className="w-24 text-xs bg-background border border-border rounded-lg px-1.5 py-1.5 text-foreground outline-none shrink-0"
         >
           {OVERSEAS_EXCHANGES.map(ex => <option key={ex} value={ex}>{ex}</option>)}
@@ -478,13 +492,21 @@ function OverseasCard({ entry, usdtNum, onUpdate, onDelete }: {
           inputMode="decimal"
           value={entry.usdt}
           onChange={e => onUpdate({ usdt: e.target.value })}
-          placeholder="USDT 수량"
+          placeholder="총 평가금액"
           className="flex-1 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none tabular-nums text-right"
         />
         <button onClick={onDelete} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0 p-0.5">
           <X size={13} />
         </button>
       </div>
+      {entry.exchange === "직접입력" && (
+        <input
+          value={entry.customExchange}
+          onChange={e => onUpdate({ customExchange: e.target.value })}
+          placeholder="거래소명 입력"
+          className="mt-1.5 w-full text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none"
+        />
+      )}
       {krw > 0 && (
         <p className="text-[10px] text-muted-foreground text-right mt-0.5 pr-5">≈ {fmtKrw(krw)}</p>
       )}
@@ -497,32 +519,52 @@ function DomesticCard({ entry, onUpdate, onDelete }: {
   onUpdate: (p: Partial<DomesticEntry>) => void; onDelete: () => void;
 }) {
   return (
-    <div className="bg-muted/40 border border-border rounded-lg p-2">
+    <div className="bg-muted/40 border border-border rounded-lg p-2 flex flex-col gap-1.5">
+      {/* 거래소 선택 */}
       <div className="flex items-center gap-1.5">
         <select
           value={entry.exchange}
-          onChange={e => onUpdate({ exchange: e.target.value })}
-          className="w-20 text-xs bg-background border border-border rounded-lg px-1.5 py-1.5 text-foreground outline-none shrink-0"
+          onChange={e => onUpdate({ exchange: e.target.value, customExchange: "" })}
+          className="flex-1 text-xs bg-background border border-border rounded-lg px-1.5 py-1.5 text-foreground outline-none"
         >
           {DOMESTIC_EXCHANGES.map(ex => <option key={ex} value={ex}>{ex}</option>)}
         </select>
+        <button onClick={onDelete} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0 p-0.5">
+          <X size={13} />
+        </button>
+      </div>
+      {/* 직접입력 거래소명 */}
+      {entry.exchange === "직접입력" && (
+        <input
+          value={entry.customExchange}
+          onChange={e => onUpdate({ customExchange: e.target.value })}
+          placeholder="거래소명 입력"
+          className="w-full text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none"
+        />
+      )}
+      {/* 코인 평가금액 */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground shrink-0 w-[68px]">코인 평가금액</span>
         <input
           inputMode="numeric"
           value={entry.coinAmount}
           onChange={e => onUpdate({ coinAmount: e.target.value })}
-          placeholder="코인평가금"
+          placeholder="0"
           className="flex-1 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none tabular-nums text-right"
         />
+        <span className="text-[10px] text-muted-foreground shrink-0">원</span>
+      </div>
+      {/* 원화 예치금 */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground shrink-0 w-[68px]">원화 예치금</span>
         <input
           inputMode="numeric"
           value={entry.deposit}
           onChange={e => onUpdate({ deposit: e.target.value })}
-          placeholder="예치금"
+          placeholder="0"
           className="flex-1 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none tabular-nums text-right"
         />
-        <button onClick={onDelete} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0 p-0.5">
-          <X size={13} />
-        </button>
+        <span className="text-[10px] text-muted-foreground shrink-0">원</span>
       </div>
     </div>
   );
@@ -582,39 +624,59 @@ function CashCard({ entry, onUpdate, onDelete }: {
   entry: CashEntry;
   onUpdate: (p: Partial<CashEntry>) => void; onDelete: () => void;
 }) {
+  const subs = CASH_SUBS[entry.category] ?? [];
+  const isDirectCategory = entry.category === "직접입력";
+  const isDirectSub = entry.subcategory === "직접입력";
+
+  function handleCategoryChange(cat: string) {
+    const firstSub = CASH_SUBS[cat]?.[0] ?? "";
+    onUpdate({ category: cat, subcategory: firstSub, customText: "" });
+  }
+
   return (
-    <div className="bg-muted/40 border border-border rounded-lg p-2">
+    <div className="bg-muted/40 border border-border rounded-lg p-2 flex flex-col gap-1.5">
       <div className="flex items-center gap-1.5">
-        <input
-          value={entry.label}
-          onChange={e => onUpdate({ label: e.target.value })}
-          placeholder="분류명"
-          className="flex-1 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none min-w-0"
-        />
+        {/* 1단계: 분류 */}
         <select
-          value={entry.type}
-          onChange={e => onUpdate({ type: e.target.value })}
-          className="w-24 text-xs bg-background border border-border rounded-lg px-1.5 py-1.5 text-foreground outline-none shrink-0"
+          value={entry.category}
+          onChange={e => handleCategoryChange(e.target.value)}
+          className="w-20 text-xs bg-background border border-border rounded-lg px-1.5 py-1.5 text-foreground outline-none shrink-0"
         >
-          {CASH_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          {CASH_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
+
+        {/* 2단계: 하위 선택 (분류가 직접입력이 아닐 때) */}
+        {!isDirectCategory && (
+          <select
+            value={entry.subcategory}
+            onChange={e => onUpdate({ subcategory: e.target.value, customText: "" })}
+            className="flex-1 text-xs bg-background border border-border rounded-lg px-1.5 py-1.5 text-foreground outline-none min-w-0"
+          >
+            {subs.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+
+        {/* 금액 입력 */}
         <input
           inputMode="numeric"
           value={entry.amount}
           onChange={e => onUpdate({ amount: e.target.value })}
           placeholder="금액"
-          className="w-20 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none tabular-nums text-right shrink-0"
+          className="w-28 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none tabular-nums text-right shrink-0"
         />
+
         <button onClick={onDelete} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0 p-0.5">
           <X size={13} />
         </button>
       </div>
-      {entry.type === "직접입력" && (
+
+      {/* 직접입력 텍스트 필드 */}
+      {(isDirectCategory || isDirectSub) && (
         <input
-          value={entry.customType}
-          onChange={e => onUpdate({ customType: e.target.value })}
+          value={entry.customText}
+          onChange={e => onUpdate({ customText: e.target.value })}
           placeholder="직접 입력"
-          className="mt-1.5 w-full text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none"
+          className="w-full text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none"
         />
       )}
     </div>
@@ -645,9 +707,9 @@ function TotalsFooter({ coinTotal, stockTotal, cashTotal, grandTotal }: {
 }) {
   return (
     <div className="bg-card border border-border rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
-      <ModalRow label="코인 합계" value={fmtKrw(coinTotal)} />
-      <ModalRow label="주식 합계" value={fmtKrw(stockTotal)} />
-      <ModalRow label="현금 합계" value={fmtKrw(cashTotal)} />
+      <ModalRow label="코인" value={fmtKrw(coinTotal)} />
+      <ModalRow label="주식" value={fmtKrw(stockTotal)} />
+      <ModalRow label="현금" value={fmtKrw(cashTotal)} />
       <div className="border-t border-border pt-1.5 mt-0.5">
         <ModalRow label="전체 총합" value={fmtKrw(grandTotal)} bold />
       </div>
