@@ -2,31 +2,28 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { X, Plus } from "lucide-react";
+import { X, Plus, ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-// ─── 상수 ────────────────────────────────────────────────────
-const USDT_PRICE_DEFAULT = 1482;
-
-const OVERSEAS_EXCHANGES = ["OKX", "BITGET", "BINANCE", "DIGIFINEX", "POLYMARKET", "BYBIT", "BINGX"];
+// ─── 상수 ──────────────────────────────────────────────────────
+const OVERSEAS_EXCHANGES = ["OKX", "BITGET", "BINANCE", "DIGIFINEX", "BYBIT", "BINGX", "POLYMARKET"];
 const DOMESTIC_EXCHANGES = ["업비트", "빗썸", "코인원", "코빗"];
 const CASH_TYPES         = ["카카오뱅크", "하나은행", "국민은행", "현금", "빚", "직접입력"];
 
-// ─── 타입 ────────────────────────────────────────────────────
-interface OverseasEntry  { id: string; exchange: string; usdt: string; }
-interface DomesticEntry  { id: string; exchange: string; coinAmount: string; deposit: string; }
-interface StockEntry     { id: string; name: string; qty: string; amount: string; }
-interface CashEntry      { id: string; label: string; type: string; customType: string; amount: string; }
+// ─── 타입 ──────────────────────────────────────────────────────
+interface OverseasEntry { id: string; exchange: string; usdt: string; }
+interface DomesticEntry { id: string; exchange: string; coinAmount: string; deposit: string; }
+interface StockEntry    {
+  id: string; symbol: string; qty: string;
+  price: number | null; priceCurrency: string; loadingPrice: boolean;
+}
+interface CashEntry     { id: string; label: string; type: string; customType: string; amount: string; }
 
+// ─── 유틸 ──────────────────────────────────────────────────────
 const uid = () => Math.random().toString(36).slice(2);
+const toNum = (s: string) => Number(s.replace(/,/g, "")) || 0;
 
-const newOverseas  = (): OverseasEntry  => ({ id: uid(), exchange: OVERSEAS_EXCHANGES[0], usdt: "" });
-const newDomestic  = (): DomesticEntry  => ({ id: uid(), exchange: DOMESTIC_EXCHANGES[0], coinAmount: "", deposit: "" });
-const newStock     = (): StockEntry     => ({ id: uid(), name: "", qty: "", amount: "" });
-const newCash      = (): CashEntry      => ({ id: uid(), label: "", type: CASH_TYPES[0], customType: "", amount: "" });
-
-// ─── 금액 포맷 ────────────────────────────────────────────────
-function formatKorean(n: number): string {
+function fmtKrw(n: number): string {
   if (!n || isNaN(n)) return "0원";
   const eok = Math.floor(n / 100_000_000);
   const man = Math.floor((n % 100_000_000) / 10_000);
@@ -37,25 +34,47 @@ function formatKorean(n: number): string {
   if (man > 0) return `${man.toLocaleString()}만원`;
   return `${n.toLocaleString()}원`;
 }
-const num = (s: string) => Number(s.replace(/,/g, "")) || 0;
 
-// ─── localStorage 키 ─────────────────────────────────────────
+const newOverseas = (): OverseasEntry  => ({ id: uid(), exchange: OVERSEAS_EXCHANGES[0], usdt: "" });
+const newDomestic = (): DomesticEntry  => ({ id: uid(), exchange: DOMESTIC_EXCHANGES[0], coinAmount: "", deposit: "" });
+const newStock    = (): StockEntry     => ({ id: uid(), symbol: "", qty: "", price: null, priceCurrency: "KRW", loadingPrice: false });
+const newCash     = (): CashEntry      => ({ id: uid(), label: "", type: CASH_TYPES[0], customType: "", amount: "" });
+
 const LS_KEY = "asset_record_cash";
 
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 export default function AssetRecordPage() {
   const router = useRouter();
-  const [tab, setTab]           = useState<"coin" | "stock" | "cash">("coin");
-  const [usdtPrice, setUsdtPrice] = useState(String(USDT_PRICE_DEFAULT));
-  const [overseas, setOverseas] = useState<OverseasEntry[]>([]);
-  const [domestic, setDomestic] = useState<DomesticEntry[]>([]);
-  const [stocks, setStocks]     = useState<StockEntry[]>([]);
-  const [irp, setIrp]           = useState("");
-  const [pension, setPension]   = useState("");
-  const [cashItems, setCashItems] = useState<CashEntry[]>([]);
-  const [modal, setModal]       = useState(false);
-  const [saving, setSaving]     = useState(false);
 
+  // ── 탭 ──────────────────────────────────────────────────────
+  const [tab, setTab] = useState<"coin" | "stock" | "cash">("coin");
+
+  // ── USDT 가격 ────────────────────────────────────────────────
+  const [usdtPrice, setUsdtPrice] = useState("1482");
+
+  // ── 코인 ────────────────────────────────────────────────────
+  const [overseas, setOverseas]           = useState<OverseasEntry[]>([]);
+  const [domestic, setDomestic]           = useState<DomesticEntry[]>([]);
+  const [overseasOpen, setOverseasOpen]   = useState(true);
+  const [domesticOpen, setDomesticOpen]   = useState(true);
+
+  // ── 주식 ────────────────────────────────────────────────────
+  const [stocks, setStocks]             = useState<StockEntry[]>([]);
+  const [irp, setIrp]                   = useState("");
+  const [pension, setPension]           = useState("");
+  const [stockOpen, setStockOpen]       = useState(true);
+  const [irpOpen, setIrpOpen]           = useState(true);
+  const [pensionOpen, setPensionOpen]   = useState(true);
+
+  // ── 현금 ────────────────────────────────────────────────────
+  const [cashItems, setCashItems] = useState<CashEntry[]>([]);
+  const [cashOpen, setCashOpen]   = useState(true);
+
+  // ── 모달 ────────────────────────────────────────────────────
+  const [modal, setModal]   = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // ── localStorage 로드 ────────────────────────────────────────
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_KEY);
@@ -68,74 +87,108 @@ export default function AssetRecordPage() {
     try { localStorage.setItem(LS_KEY, JSON.stringify(items)); } catch { /* ignore */ }
   }, []);
 
-  // ── 합계 계산 ──────────────────────────────────────────────
-  const coinTotal = (() => {
-    const o = overseas.reduce((s, e) => s + num(e.usdt) * num(usdtPrice), 0);
-    const d = domestic.reduce((s, e) => s + num(e.coinAmount) + num(e.deposit), 0);
-    return o + d;
-  })();
-  const stockTotal = stocks.reduce((s, e) => s + num(e.amount), 0)
-    + num(irp) + num(pension);
-  const cashTotal  = cashItems.reduce((s, e) => s + num(e.amount), 0);
-  const grandTotal = coinTotal + stockTotal + cashTotal;
+  // ── 주식 현재가 조회 ─────────────────────────────────────────
+  async function fetchStockPrice(id: string, symbol: string) {
+    if (!symbol.trim()) return;
+    setStocks(prev => prev.map(s => s.id === id ? { ...s, loadingPrice: true } : s));
+    try {
+      const res = await fetch(`/api/stock-price?symbol=${encodeURIComponent(symbol.trim())}`);
+      const data = await res.json();
+      if (data.price != null) {
+        setStocks(prev => prev.map(s => s.id === id
+          ? { ...s, price: data.price, priceCurrency: data.currency ?? "KRW", loadingPrice: false }
+          : s
+        ));
+      } else {
+        setStocks(prev => prev.map(s => s.id === id ? { ...s, loadingPrice: false } : s));
+      }
+    } catch {
+      setStocks(prev => prev.map(s => s.id === id ? { ...s, loadingPrice: false } : s));
+    }
+  }
 
-  // ── Supabase 저장 ──────────────────────────────────────────
+  // ── 업데이트 헬퍼 ────────────────────────────────────────────
+  const updateOverseas = (id: string, patch: Partial<OverseasEntry>) =>
+    setOverseas(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
+  const updateDomestic = (id: string, patch: Partial<DomesticEntry>) =>
+    setDomestic(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
+  const updateStock = (id: string, patch: Partial<StockEntry>) =>
+    setStocks(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
+  const updateCash = (id: string, patch: Partial<CashEntry>) =>
+    saveCash(cashItems.map(e => e.id === id ? { ...e, ...patch } : e));
+
+  // ── 합계 계산 ────────────────────────────────────────────────
+  const usdtNum       = toNum(usdtPrice);
+  const overseasTotal = overseas.reduce((s, e) => s + toNum(e.usdt) * usdtNum, 0);
+  const domesticTotal = domestic.reduce((s, e) => s + toNum(e.coinAmount) + toNum(e.deposit), 0);
+  const coinTotal     = overseasTotal + domesticTotal;
+
+  const stockIndivTotal = stocks.reduce((s, e) => {
+    if (!e.price) return s;
+    const qty = Number(e.qty) || 0;
+    return s + e.price * qty * (e.priceCurrency === "USD" ? usdtNum : 1);
+  }, 0);
+  const irpNum      = toNum(irp);
+  const pensionNum  = toNum(pension);
+  const stockTotal  = stockIndivTotal + irpNum + pensionNum;
+  const cashTotal   = cashItems.reduce((s, e) => s + toNum(e.amount), 0);
+  const grandTotal  = coinTotal + stockTotal + cashTotal;
+
+  // ── Supabase 저장 ────────────────────────────────────────────
   async function handleConfirm() {
     setSaving(true);
     const detail = {
-      overseas: overseas.map((e) => ({
-        exchange: e.exchange,
-        usdt: num(e.usdt),
-        usdtPrice: num(usdtPrice),
-        krw: num(e.usdt) * num(usdtPrice),
+      overseas: overseas.map(e => ({
+        exchange: e.exchange, usdt: toNum(e.usdt),
+        usdtPrice: usdtNum, krw: toNum(e.usdt) * usdtNum,
       })),
-      domestic: domestic.map((e) => ({
+      domestic: domestic.map(e => ({
         exchange: e.exchange,
-        coinAmount: num(e.coinAmount),
-        deposit: num(e.deposit),
+        coinAmount: toNum(e.coinAmount), deposit: toNum(e.deposit),
       })),
-      stocks: stocks.map((e) => ({ name: e.name, qty: num(e.qty), amount: num(e.amount) })),
-      irp: num(irp),
-      pension: num(pension),
-      cash: cashItems.map((e) => ({
+      stocks: stocks.map(e => ({
+        symbol: e.symbol, qty: Number(e.qty) || 0,
+        price: e.price ?? 0, currency: e.priceCurrency,
+        amount: e.price ? e.price * (Number(e.qty) || 0) * (e.priceCurrency === "USD" ? usdtNum : 1) : 0,
+      })),
+      irp: irpNum,
+      pension: pensionNum,
+      cash: cashItems.map(e => ({
         label: e.label,
         type: e.type === "직접입력" ? e.customType : e.type,
-        amount: num(e.amount),
+        amount: toNum(e.amount),
       })),
     };
+
     const { error } = await supabase.from("asset_snapshots").insert({
-      recorded_at:   new Date().toISOString(),
-      total_amount:  grandTotal,
-      coin_amount:   coinTotal,
-      stock_amount:  stockTotal,
-      cash_amount:   cashTotal,
-      detail_json:   detail,
+      recorded_at:  new Date().toISOString(),
+      total_amount: grandTotal,
+      coin_amount:  coinTotal,
+      stock_amount: stockTotal,
+      cash_amount:  cashTotal,
+      detail_json:  detail,
     });
+
     setSaving(false);
     if (error) { alert("저장 실패: " + error.message); return; }
     setModal(false);
     router.push("/home");
   }
 
+  // ─────────────────────────────────────────────────────────────
   return (
     <div
       className="flex flex-col overflow-hidden"
-      style={{
-        height: "calc(100dvh - var(--topbar-h, 48px) - var(--bottomnav-h, 60px) - env(safe-area-inset-bottom))",
-      }}
+      style={{ height: "calc(100dvh - var(--topbar-h,48px) - var(--bottomnav-h,60px) - env(safe-area-inset-bottom))" }}
     >
-      {/* ── 탭 ── */}
+      {/* ── 탭 바 ── */}
       <div className="flex border-b border-border bg-card shrink-0">
-        {(["coin", "stock", "cash"] as const).map((t) => {
+        {(["coin", "stock", "cash"] as const).map(t => {
           const label = t === "coin" ? "코인" : t === "stock" ? "주식" : "현금";
           return (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                tab === t
-                  ? "text-foreground border-b-2 border-foreground"
-                  : "text-muted-foreground"
+            <button key={t} onClick={() => setTab(t)}
+              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                tab === t ? "text-foreground border-b-2 border-foreground" : "text-muted-foreground"
               }`}
             >
               {label}
@@ -144,33 +197,187 @@ export default function AssetRecordPage() {
         })}
       </div>
 
-      {/* ── 탭 내용 ── */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 pb-6">
-        {tab === "coin"  && (
-          <CoinTab
-            overseas={overseas}
-            setOverseas={setOverseas}
-            domestic={domestic}
-            setDomestic={setDomestic}
-            usdtPrice={usdtPrice}
-            setUsdtPrice={setUsdtPrice}
-          />
+      {/* ── 탭 콘텐츠 ── */}
+      <div className="flex-1 overflow-y-auto px-2 py-2 pb-4">
+
+        {/* ── 코인 탭 ── */}
+        {tab === "coin" && (
+          <div className="flex flex-col gap-2">
+
+            {/* USDT 가격 카드 */}
+            <div className="bg-card border border-border rounded-xl px-3 py-2 flex items-center gap-2">
+              <span className="text-xs font-semibold text-foreground">USDT 가격</span>
+              <input
+                inputMode="numeric"
+                value={usdtPrice}
+                onChange={e => setUsdtPrice(e.target.value)}
+                className="flex-1 bg-muted rounded-lg px-2.5 py-1.5 text-sm tabular-nums text-right text-foreground outline-none border border-transparent focus:border-ring"
+                placeholder="1482"
+              />
+              <span className="text-xs text-muted-foreground shrink-0">원</span>
+            </div>
+
+            {/* 해외 거래소 */}
+            <div className="bg-card border border-border rounded-xl px-3 py-2">
+              <SectionHeader
+                title="해외 거래소"
+                total={overseasTotal}
+                expanded={overseasOpen}
+                onToggle={() => setOverseasOpen(v => !v)}
+                onAdd={() => setOverseas(prev => [...prev, newOverseas()])}
+              />
+              {overseasOpen && (
+                <div className="flex flex-col gap-1.5 mt-1.5">
+                  {overseas.map(e => (
+                    <OverseasCard
+                      key={e.id} entry={e} usdtNum={usdtNum}
+                      onUpdate={p => updateOverseas(e.id, p)}
+                      onDelete={() => setOverseas(prev => prev.filter(x => x.id !== e.id))}
+                    />
+                  ))}
+                  {overseas.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground py-1">항목이 없습니다.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 국내 거래소 */}
+            <div className="bg-card border border-border rounded-xl px-3 py-2">
+              <SectionHeader
+                title="국내 거래소"
+                total={domesticTotal}
+                expanded={domesticOpen}
+                onToggle={() => setDomesticOpen(v => !v)}
+                onAdd={() => setDomestic(prev => [...prev, newDomestic()])}
+              />
+              {domesticOpen && (
+                <div className="flex flex-col gap-1.5 mt-1.5">
+                  {domestic.map(e => (
+                    <DomesticCard
+                      key={e.id} entry={e}
+                      onUpdate={p => updateDomestic(e.id, p)}
+                      onDelete={() => setDomestic(prev => prev.filter(x => x.id !== e.id))}
+                    />
+                  ))}
+                  {domestic.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground py-1">항목이 없습니다.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <TotalsFooter coinTotal={coinTotal} stockTotal={stockTotal} cashTotal={cashTotal} grandTotal={grandTotal} />
+          </div>
         )}
+
+        {/* ── 주식 탭 ── */}
         {tab === "stock" && (
-          <StockTab
-            stocks={stocks}
-            setStocks={setStocks}
-            irp={irp}
-            setIrp={setIrp}
-            pension={pension}
-            setPension={setPension}
-          />
+          <div className="flex flex-col gap-2">
+
+            {/* 개별 주식 */}
+            <div className="bg-card border border-border rounded-xl px-3 py-2">
+              <SectionHeader
+                title="개별 주식"
+                total={stockIndivTotal}
+                expanded={stockOpen}
+                onToggle={() => setStockOpen(v => !v)}
+                onAdd={() => setStocks(prev => [...prev, newStock()])}
+              />
+              {stockOpen && (
+                <div className="flex flex-col gap-1.5 mt-1.5">
+                  {stocks.map(e => (
+                    <StockCard
+                      key={e.id} entry={e} usdtNum={usdtNum}
+                      onUpdate={p => updateStock(e.id, p)}
+                      onDelete={() => setStocks(prev => prev.filter(x => x.id !== e.id))}
+                      onFetchPrice={() => fetchStockPrice(e.id, e.symbol)}
+                    />
+                  ))}
+                  {stocks.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground py-1">항목이 없습니다.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* IRP */}
+            <div className="bg-card border border-border rounded-xl px-3 py-2">
+              <SectionHeader
+                title="IRP"
+                total={irpNum}
+                expanded={irpOpen}
+                onToggle={() => setIrpOpen(v => !v)}
+              />
+              {irpOpen && (
+                <div className="mt-1.5">
+                  <CompactInput
+                    label="총 평가금액 (원)"
+                    value={irp} onChange={setIrp}
+                    placeholder="0" inputMode="numeric"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 개인연금 */}
+            <div className="bg-card border border-border rounded-xl px-3 py-2">
+              <SectionHeader
+                title="개인연금"
+                total={pensionNum}
+                expanded={pensionOpen}
+                onToggle={() => setPensionOpen(v => !v)}
+              />
+              {pensionOpen && (
+                <div className="mt-1.5">
+                  <CompactInput
+                    label="총 평가금액 (원)"
+                    value={pension} onChange={setPension}
+                    placeholder="0" inputMode="numeric"
+                  />
+                </div>
+              )}
+            </div>
+
+            <TotalsFooter coinTotal={coinTotal} stockTotal={stockTotal} cashTotal={cashTotal} grandTotal={grandTotal} />
+          </div>
         )}
-        {tab === "cash"  && <CashTab items={cashItems} setItems={saveCash} />}
+
+        {/* ── 현금 탭 ── */}
+        {tab === "cash" && (
+          <div className="flex flex-col gap-2">
+
+            <div className="bg-card border border-border rounded-xl px-3 py-2">
+              <SectionHeader
+                title="현금·예금"
+                total={cashTotal}
+                expanded={cashOpen}
+                onToggle={() => setCashOpen(v => !v)}
+                onAdd={() => saveCash([...cashItems, newCash()])}
+              />
+              {cashOpen && (
+                <div className="flex flex-col gap-1.5 mt-1.5">
+                  {cashItems.map(e => (
+                    <CashCard
+                      key={e.id} entry={e}
+                      onUpdate={p => updateCash(e.id, p)}
+                      onDelete={() => saveCash(cashItems.filter(x => x.id !== e.id))}
+                    />
+                  ))}
+                  {cashItems.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground py-1">항목이 없습니다.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <TotalsFooter coinTotal={coinTotal} stockTotal={stockTotal} cashTotal={cashTotal} grandTotal={grandTotal} />
+          </div>
+        )}
       </div>
 
-      {/* ── 하단 고정 등록 버튼 ── */}
-      <div className="shrink-0 px-3 py-3 border-t border-border bg-card">
+      {/* ── 등록 버튼 ── */}
+      <div className="shrink-0 px-2 py-2 border-t border-border bg-card">
         <button
           onClick={() => setModal(true)}
           className="w-full py-3 rounded-xl bg-foreground text-background font-semibold text-sm active:opacity-80 transition-opacity"
@@ -179,374 +386,282 @@ export default function AssetRecordPage() {
         </button>
       </div>
 
-      {/* ── 확인 모달 (중앙 팝업) ── */}
+      {/* ── 확인 모달 ── */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <>
+          <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setModal(false)} />
           <div
-            className="bg-card w-full max-w-[340px] rounded-2xl border border-border p-5"
+            className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100vw-32px)] max-w-[340px] bg-card rounded-2xl border border-border p-5"
             style={{ maxHeight: "80vh", overflowY: "auto" }}
           >
             <h2 className="text-base font-bold text-foreground mb-4 text-center">등록 확인</h2>
             <div className="flex flex-col gap-2 mb-5">
-              <SummaryRow label="코인 합계"  value={formatKorean(coinTotal)} />
-              <SummaryRow label="주식 합계"  value={formatKorean(stockTotal)} />
-              <SummaryRow label="현금 합계"  value={formatKorean(cashTotal)} />
+              <ModalRow label="코인 합계"  value={fmtKrw(coinTotal)} />
+              <ModalRow label="주식 합계"  value={fmtKrw(stockTotal)} />
+              <ModalRow label="현금 합계"  value={fmtKrw(cashTotal)} />
               <div className="border-t border-border pt-2 mt-1">
-                <SummaryRow label="총합" value={formatKorean(grandTotal)} bold />
+                <ModalRow label="총합" value={fmtKrw(grandTotal)} bold />
               </div>
             </div>
             <p className="text-sm text-muted-foreground text-center mb-5">
               이 금액으로 등록하시겠습니까?
             </p>
             <div className="flex gap-2">
-              <button
-                onClick={() => setModal(false)}
-                className="flex-1 py-3 rounded-xl border border-border text-sm font-medium text-foreground"
-              >
+              <button onClick={() => setModal(false)}
+                className="flex-1 py-3 rounded-xl border border-border text-sm font-medium text-foreground">
                 취소
               </button>
-              <button
-                onClick={handleConfirm}
-                disabled={saving}
-                className="flex-1 py-3 rounded-xl bg-foreground text-background text-sm font-semibold disabled:opacity-50"
-              >
+              <button onClick={handleConfirm} disabled={saving}
+                className="flex-1 py-3 rounded-xl bg-foreground text-background text-sm font-semibold disabled:opacity-50">
                 {saving ? "저장 중..." : "확인"}
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════
-// 코인 탭
-// ═══════════════════════════════════════════════════════════
-function CoinTab({
-  overseas, setOverseas, domestic, setDomestic, usdtPrice, setUsdtPrice,
+// ═══════════════════════════════════════════════════════════════
+// 공통 섹션 헤더 (아코디언)
+// ═══════════════════════════════════════════════════════════════
+function SectionHeader({
+  title, total, expanded, onToggle, onAdd,
 }: {
-  overseas: OverseasEntry[];    setOverseas: (v: OverseasEntry[]) => void;
-  domestic: DomesticEntry[];    setDomestic: (v: DomesticEntry[]) => void;
-  usdtPrice: string;            setUsdtPrice: (v: string) => void;
-}) {
-  const updateO = (id: string, patch: Partial<OverseasEntry>) =>
-    setOverseas(overseas.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-  const updateD = (id: string, patch: Partial<DomesticEntry>) =>
-    setDomestic(domestic.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-
-  return (
-    <div className="flex flex-col gap-4">
-      {/* 해외 */}
-      <Section
-        title="해외 거래소"
-        onAdd={() => setOverseas([...overseas, newOverseas()])}
-        headerExtra={
-          <div className="flex items-center gap-1">
-            <span className="text-[11px] text-muted-foreground">USDT</span>
-            <input
-              inputMode="numeric"
-              value={usdtPrice}
-              onChange={(e) => setUsdtPrice(e.target.value)}
-              className="w-[68px] bg-muted rounded-lg px-2 py-1 text-xs text-foreground tabular-nums outline-none border border-transparent focus:border-ring text-right"
-              placeholder={String(USDT_PRICE_DEFAULT)}
-            />
-            <span className="text-[11px] text-muted-foreground">원</span>
-          </div>
-        }
-      >
-        {overseas.map((e) => {
-          const krw = num(e.usdt) * num(usdtPrice);
-          return (
-            <EntryCard key={e.id} onDelete={() => setOverseas(overseas.filter((x) => x.id !== e.id))}>
-              <Select
-                value={e.exchange}
-                options={OVERSEAS_EXCHANGES}
-                onChange={(v) => updateO(e.id, { exchange: v })}
-              />
-              <div className="mt-2">
-                <LabeledInput
-                  label="USDT 수량"
-                  value={e.usdt}
-                  onChange={(v) => updateO(e.id, { usdt: v })}
-                  placeholder="0"
-                  inputMode="decimal"
-                />
-              </div>
-              {krw > 0 && (
-                <p className="text-xs text-muted-foreground mt-1.5 text-right">
-                  ≈ {formatKorean(krw)}
-                </p>
-              )}
-            </EntryCard>
-          );
-        })}
-      </Section>
-
-      {/* 국내 */}
-      <Section
-        title="국내 거래소"
-        onAdd={() => setDomestic([...domestic, newDomestic()])}
-      >
-        {domestic.map((e) => (
-          <EntryCard key={e.id} onDelete={() => setDomestic(domestic.filter((x) => x.id !== e.id))}>
-            <Select
-              value={e.exchange}
-              options={DOMESTIC_EXCHANGES}
-              onChange={(v) => updateD(e.id, { exchange: v })}
-            />
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <LabeledInput
-                label="코인 평가금(원)"
-                value={e.coinAmount}
-                onChange={(v) => updateD(e.id, { coinAmount: v })}
-                placeholder="0"
-                inputMode="numeric"
-              />
-              <LabeledInput
-                label="원화 예치금(원)"
-                value={e.deposit}
-                onChange={(v) => updateD(e.id, { deposit: v })}
-                placeholder="0"
-                inputMode="numeric"
-              />
-            </div>
-          </EntryCard>
-        ))}
-      </Section>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
-// 주식 탭
-// ═══════════════════════════════════════════════════════════
-function StockTab({
-  stocks, setStocks, irp, setIrp, pension, setPension,
-}: {
-  stocks: StockEntry[]; setStocks: (v: StockEntry[]) => void;
-  irp: string; setIrp: (v: string) => void;
-  pension: string; setPension: (v: string) => void;
-}) {
-  const update = (id: string, patch: Partial<StockEntry>) =>
-    setStocks(stocks.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-
-  return (
-    <div className="flex flex-col gap-4">
-      <Section title="개인주식" onAdd={() => setStocks([...stocks, newStock()])}>
-        {stocks.map((e) => (
-          <EntryCard key={e.id} onDelete={() => setStocks(stocks.filter((x) => x.id !== e.id))}>
-            <LabeledInput
-              label="종목명"
-              value={e.name}
-              onChange={(v) => update(e.id, { name: v })}
-              placeholder="삼성전자"
-            />
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <LabeledInput
-                label="수량"
-                value={e.qty}
-                onChange={(v) => update(e.id, { qty: v })}
-                placeholder="0"
-                inputMode="numeric"
-              />
-              <LabeledInput
-                label="평가금액(원)"
-                value={e.amount}
-                onChange={(v) => update(e.id, { amount: v })}
-                placeholder="0"
-                inputMode="numeric"
-              />
-            </div>
-          </EntryCard>
-        ))}
-      </Section>
-
-      <Section title="IRP">
-        <div className="bg-card border border-border rounded-xl p-3">
-          <LabeledInput
-            label="총 평가금액(원)"
-            value={irp}
-            onChange={setIrp}
-            placeholder="0"
-            inputMode="numeric"
-          />
-        </div>
-      </Section>
-
-      <Section title="개인연금">
-        <div className="bg-card border border-border rounded-xl p-3">
-          <LabeledInput
-            label="총 평가금액(원)"
-            value={pension}
-            onChange={setPension}
-            placeholder="0"
-            inputMode="numeric"
-          />
-        </div>
-      </Section>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
-// 현금 탭
-// ═══════════════════════════════════════════════════════════
-function CashTab({
-  items, setItems,
-}: {
-  items: CashEntry[]; setItems: (v: CashEntry[]) => void;
-}) {
-  const update = (id: string, patch: Partial<CashEntry>) =>
-    setItems(items.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-
-  return (
-    <div className="flex flex-col gap-4">
-      <Section title="현금·예금" onAdd={() => setItems([...items, newCash()])}>
-        {items.map((e) => (
-          <EntryCard key={e.id} onDelete={() => setItems(items.filter((x) => x.id !== e.id))}>
-            <LabeledInput
-              label="분류명"
-              value={e.label}
-              onChange={(v) => update(e.id, { label: v })}
-              placeholder="비상금"
-            />
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <div>
-                <p className="text-[11px] text-muted-foreground mb-1">계좌/종류</p>
-                <Select
-                  value={e.type}
-                  options={CASH_TYPES}
-                  onChange={(v) => update(e.id, { type: v })}
-                />
-                {e.type === "직접입력" && (
-                  <input
-                    className="mt-1 w-full bg-muted rounded-lg px-2.5 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none border border-transparent focus:border-ring"
-                    placeholder="직접 입력"
-                    value={e.customType}
-                    onChange={(ev) => update(e.id, { customType: ev.target.value })}
-                  />
-                )}
-              </div>
-              <LabeledInput
-                label="금액(원)"
-                value={e.amount}
-                onChange={(v) => update(e.id, { amount: v })}
-                placeholder="0"
-                inputMode="numeric"
-              />
-            </div>
-          </EntryCard>
-        ))}
-      </Section>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
-// 공통 UI 컴포넌트
-// ═══════════════════════════════════════════════════════════
-function Section({
-  title, onAdd, children, headerExtra,
-}: {
-  title: string;
-  onAdd?: () => void;
-  children?: React.ReactNode;
-  headerExtra?: React.ReactNode;
+  title: string; total?: number; expanded: boolean;
+  onToggle: () => void; onAdd?: () => void;
 }) {
   return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-foreground shrink-0">{title}</h3>
-          {headerExtra}
-        </div>
+    <div className="flex items-center gap-2 cursor-pointer select-none" onClick={onToggle}>
+      <span className="text-sm font-semibold text-foreground shrink-0">{title}</span>
+      {total !== undefined && total > 0 && (
+        <span className="text-[11px] text-muted-foreground tabular-nums">합계 {fmtKrw(total)}</span>
+      )}
+      <div className="flex items-center gap-1 ml-auto shrink-0">
         {onAdd && (
           <button
-            onClick={onAdd}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-muted shrink-0"
+            onClick={e => { e.stopPropagation(); onAdd(); }}
+            className="flex items-center gap-0.5 text-[11px] text-muted-foreground hover:text-foreground px-1.5 py-1 rounded-lg hover:bg-muted transition-colors"
           >
-            <Plus size={13} />
-            추가
+            <Plus size={11} />추가
           </button>
         )}
+        <ChevronDown
+          size={14}
+          className={`text-muted-foreground transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+        />
       </div>
-      <div className="flex flex-col gap-2">{children}</div>
     </div>
   );
 }
 
-function EntryCard({
-  children, onDelete,
-}: {
-  children: React.ReactNode; onDelete: () => void;
+// ═══════════════════════════════════════════════════════════════
+// 카드 컴포넌트들
+// ═══════════════════════════════════════════════════════════════
+function OverseasCard({ entry, usdtNum, onUpdate, onDelete }: {
+  entry: OverseasEntry; usdtNum: number;
+  onUpdate: (p: Partial<OverseasEntry>) => void; onDelete: () => void;
 }) {
+  const krw = toNum(entry.usdt) * usdtNum;
   return (
-    <div className="relative bg-card border border-border rounded-xl p-3">
-      <button
-        onClick={onDelete}
-        className="absolute top-2.5 right-2.5 text-muted-foreground hover:text-foreground transition-colors"
-        aria-label="삭제"
-      >
-        <X size={15} />
-      </button>
-      <div className="pr-5">{children}</div>
+    <div className="bg-muted/40 border border-border rounded-lg p-2">
+      <div className="flex items-center gap-1.5">
+        <select
+          value={entry.exchange}
+          onChange={e => onUpdate({ exchange: e.target.value })}
+          className="w-24 text-xs bg-background border border-border rounded-lg px-1.5 py-1.5 text-foreground outline-none shrink-0"
+        >
+          {OVERSEAS_EXCHANGES.map(ex => <option key={ex} value={ex}>{ex}</option>)}
+        </select>
+        <input
+          inputMode="decimal"
+          value={entry.usdt}
+          onChange={e => onUpdate({ usdt: e.target.value })}
+          placeholder="USDT 수량"
+          className="flex-1 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none tabular-nums text-right"
+        />
+        <button onClick={onDelete} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0 p-0.5">
+          <X size={13} />
+        </button>
+      </div>
+      {krw > 0 && (
+        <p className="text-[10px] text-muted-foreground text-right mt-0.5 pr-5">≈ {fmtKrw(krw)}</p>
+      )}
     </div>
   );
 }
 
-function Select({
-  value, options, onChange,
-}: {
-  value: string; options: string[]; onChange: (v: string) => void;
+function DomesticCard({ entry, onUpdate, onDelete }: {
+  entry: DomesticEntry;
+  onUpdate: (p: Partial<DomesticEntry>) => void; onDelete: () => void;
 }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full bg-muted rounded-lg px-2.5 py-2 text-sm text-foreground outline-none border border-transparent focus:border-ring appearance-none"
-    >
-      {options.map((o) => (
-        <option key={o} value={o}>{o}</option>
-      ))}
-    </select>
+    <div className="bg-muted/40 border border-border rounded-lg p-2">
+      <div className="flex items-center gap-1.5">
+        <select
+          value={entry.exchange}
+          onChange={e => onUpdate({ exchange: e.target.value })}
+          className="w-20 text-xs bg-background border border-border rounded-lg px-1.5 py-1.5 text-foreground outline-none shrink-0"
+        >
+          {DOMESTIC_EXCHANGES.map(ex => <option key={ex} value={ex}>{ex}</option>)}
+        </select>
+        <input
+          inputMode="numeric"
+          value={entry.coinAmount}
+          onChange={e => onUpdate({ coinAmount: e.target.value })}
+          placeholder="코인평가금"
+          className="flex-1 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none tabular-nums text-right"
+        />
+        <input
+          inputMode="numeric"
+          value={entry.deposit}
+          onChange={e => onUpdate({ deposit: e.target.value })}
+          placeholder="예치금"
+          className="flex-1 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none tabular-nums text-right"
+        />
+        <button onClick={onDelete} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0 p-0.5">
+          <X size={13} />
+        </button>
+      </div>
+    </div>
   );
 }
 
-function LabeledInput({
-  label, value, onChange, placeholder, inputMode,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+function StockCard({ entry, usdtNum, onUpdate, onDelete, onFetchPrice }: {
+  entry: StockEntry; usdtNum: number;
+  onUpdate: (p: Partial<StockEntry>) => void;
+  onDelete: () => void;
+  onFetchPrice: () => void;
+}) {
+  const qty    = Number(entry.qty) || 0;
+  const amount = entry.price
+    ? entry.price * qty * (entry.priceCurrency === "USD" ? usdtNum : 1)
+    : 0;
+
+  return (
+    <div className="bg-muted/40 border border-border rounded-lg p-2">
+      <div className="flex items-center gap-1.5">
+        <input
+          value={entry.symbol}
+          onChange={e => onUpdate({ symbol: e.target.value, price: null })}
+          onBlur={onFetchPrice}
+          placeholder="005930.KS"
+          className="flex-1 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none font-mono"
+        />
+        <input
+          inputMode="numeric"
+          value={entry.qty}
+          onChange={e => onUpdate({ qty: e.target.value })}
+          placeholder="수량"
+          className="w-16 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none tabular-nums text-right"
+        />
+        <button onClick={onDelete} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0 p-0.5">
+          <X size={13} />
+        </button>
+      </div>
+      <div className="flex items-center justify-between mt-1 px-0.5">
+        {entry.loadingPrice ? (
+          <span className="text-[10px] text-muted-foreground">현재가 조회 중...</span>
+        ) : entry.price != null ? (
+          <span className="text-[10px] text-muted-foreground">
+            현재가 {entry.price.toLocaleString()}{entry.priceCurrency === "USD" ? "$" : "원"}
+          </span>
+        ) : (
+          <span className="text-[10px] text-muted-foreground">심볼 입력 후 포커스 이동</span>
+        )}
+        {amount > 0 && (
+          <span className="text-[10px] font-semibold text-foreground tabular-nums">{fmtKrw(amount)}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CashCard({ entry, onUpdate, onDelete }: {
+  entry: CashEntry;
+  onUpdate: (p: Partial<CashEntry>) => void; onDelete: () => void;
 }) {
   return (
-    <div>
-      <p className="text-[11px] text-muted-foreground mb-1">{label}</p>
+    <div className="bg-muted/40 border border-border rounded-lg p-2">
+      <div className="flex items-center gap-1.5">
+        <input
+          value={entry.label}
+          onChange={e => onUpdate({ label: e.target.value })}
+          placeholder="분류명"
+          className="flex-1 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none min-w-0"
+        />
+        <select
+          value={entry.type}
+          onChange={e => onUpdate({ type: e.target.value })}
+          className="w-24 text-xs bg-background border border-border rounded-lg px-1.5 py-1.5 text-foreground outline-none shrink-0"
+        >
+          {CASH_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <input
+          inputMode="numeric"
+          value={entry.amount}
+          onChange={e => onUpdate({ amount: e.target.value })}
+          placeholder="금액"
+          className="w-20 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none tabular-nums text-right shrink-0"
+        />
+        <button onClick={onDelete} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0 p-0.5">
+          <X size={13} />
+        </button>
+      </div>
+      {entry.type === "직접입력" && (
+        <input
+          value={entry.customType}
+          onChange={e => onUpdate({ customType: e.target.value })}
+          placeholder="직접 입력"
+          className="mt-1.5 w-full text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none"
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── 단순 입력 (IRP / 개인연금) ────────────────────────────────
+function CompactInput({ label, value, onChange, placeholder, inputMode }: {
+  label: string; value: string; onChange: (v: string) => void;
+  placeholder?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[11px] text-muted-foreground shrink-0">{label}</span>
       <input
-        inputMode={inputMode}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full bg-muted rounded-lg px-2.5 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none border border-transparent focus:border-ring tabular-nums"
+        inputMode={inputMode} value={value}
+        onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        className="flex-1 text-xs bg-muted border border-border rounded-lg px-2.5 py-1.5 text-foreground outline-none tabular-nums text-right"
       />
+      <span className="text-[11px] text-muted-foreground shrink-0">원</span>
     </div>
   );
 }
 
-function SummaryRow({
-  label, value, bold,
-}: {
-  label: string; value: string; bold?: boolean;
+// ─── 합계 푸터 ──────────────────────────────────────────────────
+function TotalsFooter({ coinTotal, stockTotal, cashTotal, grandTotal }: {
+  coinTotal: number; stockTotal: number; cashTotal: number; grandTotal: number;
 }) {
+  return (
+    <div className="bg-card border border-border rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
+      <ModalRow label="코인 합계" value={fmtKrw(coinTotal)} />
+      <ModalRow label="주식 합계" value={fmtKrw(stockTotal)} />
+      <ModalRow label="현금 합계" value={fmtKrw(cashTotal)} />
+      <div className="border-t border-border pt-1.5 mt-0.5">
+        <ModalRow label="전체 총합" value={fmtKrw(grandTotal)} bold />
+      </div>
+    </div>
+  );
+}
+
+function ModalRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
     <div className="flex justify-between items-center">
-      <span className={`text-sm ${bold ? "font-bold text-foreground" : "text-muted-foreground"}`}>
+      <span className={`text-xs ${bold ? "font-bold text-foreground" : "text-muted-foreground"}`}>
         {label}
       </span>
-      <span className={`text-sm tabular-nums ${bold ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
+      <span className={`text-xs tabular-nums ${bold ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
         {value}
       </span>
     </div>

@@ -4,7 +4,12 @@
       "Read(//c/Users/home/.claude/projects/C--Users-home-Desktop-KIMP-kimp-ver2-0/memory//**)",
       "Read(//c/Users/home/.claude/projects/C--Users-home-Desktop-KIMP-kimp-ver2-0/memory/**)",
       "Bash(git branch *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)"
     ]
   }
 }
