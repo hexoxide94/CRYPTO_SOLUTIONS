@@ -20,9 +20,16 @@ const CASH_SUBS: Record<string, string[]> = {
 // ─── 타입 ──────────────────────────────────────────────────────
 interface OverseasEntry { id: string; exchange: string; customExchange: string; usdt: string; }
 interface DomesticEntry { id: string; exchange: string; customExchange: string; coinAmount: string; deposit: string; }
-interface StockEntry    {
-  id: string; symbol: string; qty: string;
-  price: number | null; priceCurrency: string; loadingPrice: boolean;
+interface StockEntry {
+  id: string;
+  market: "KR" | "US";
+  name: string;          // 종목명(KR) 또는 티커(US) — 사용자 입력
+  symbol: string;        // 실제 Yahoo 심볼 (005930.KS / AAPL)
+  qty: string;
+  price: number | null;
+  priceCurrency: string;
+  loadingPrice: boolean;
+  searchError: string;
 }
 interface CashEntry     { id: string; category: string; subcategory: string; customText: string; amount: string; }
 
@@ -44,7 +51,7 @@ function fmtKrw(n: number): string {
 
 const newOverseas = (): OverseasEntry  => ({ id: uid(), exchange: OVERSEAS_EXCHANGES[0], customExchange: "", usdt: "" });
 const newDomestic = (): DomesticEntry  => ({ id: uid(), exchange: DOMESTIC_EXCHANGES[0], customExchange: "", coinAmount: "", deposit: "" });
-const newStock    = (): StockEntry     => ({ id: uid(), symbol: "", qty: "", price: null, priceCurrency: "KRW", loadingPrice: false });
+const newStock    = (): StockEntry     => ({ id: uid(), market: "KR", name: "", symbol: "", qty: "", price: null, priceCurrency: "KRW", loadingPrice: false, searchError: "" });
 const newCash     = (): CashEntry      => ({ id: uid(), category: "은행", subcategory: "하나은행", customText: "", amount: "" });
 
 const LS_KEY = "asset_record_cash_v2";
@@ -94,10 +101,10 @@ export default function AssetRecordPage() {
     try { localStorage.setItem(LS_KEY, JSON.stringify(items)); } catch { /* ignore */ }
   }, []);
 
-  // ── 주식 현재가 조회 ─────────────────────────────────────────
-  async function fetchStockPrice(id: string, symbol: string) {
+  // ── 현재가 조회 (symbol 직접 전달) ──────────────────────────
+  async function fetchStockPriceBySymbol(id: string, symbol: string) {
     if (!symbol.trim()) return;
-    setStocks(prev => prev.map(s => s.id === id ? { ...s, loadingPrice: true } : s));
+    setStocks(prev => prev.map(s => s.id === id ? { ...s, loadingPrice: true, searchError: "" } : s));
     try {
       const res = await fetch(`/api/stock-price?symbol=${encodeURIComponent(symbol.trim())}`);
       const data = await res.json();
@@ -107,10 +114,56 @@ export default function AssetRecordPage() {
           : s
         ));
       } else {
-        setStocks(prev => prev.map(s => s.id === id ? { ...s, loadingPrice: false } : s));
+        setStocks(prev => prev.map(s => s.id === id
+          ? { ...s, loadingPrice: false, searchError: "현재가 조회 실패" }
+          : s
+        ));
       }
     } catch {
-      setStocks(prev => prev.map(s => s.id === id ? { ...s, loadingPrice: false } : s));
+      setStocks(prev => prev.map(s => s.id === id
+        ? { ...s, loadingPrice: false, searchError: "네트워크 오류" }
+        : s
+      ));
+    }
+  }
+
+  // ── 한국 종목명 → 심볼 검색 후 가격 조회 ───────────────────
+  async function searchAndFetchKrStock(id: string, name: string) {
+    if (!name.trim()) return;
+    setStocks(prev => prev.map(s => s.id === id
+      ? { ...s, loadingPrice: true, searchError: "", symbol: "", price: null }
+      : s
+    ));
+    try {
+      const res = await fetch(`/api/stock-search?q=${encodeURIComponent(name.trim())}`);
+      const data = await res.json();
+      if (data.symbol) {
+        setStocks(prev => prev.map(s => s.id === id ? { ...s, symbol: data.symbol } : s));
+        await fetchStockPriceBySymbol(id, data.symbol);
+      } else {
+        setStocks(prev => prev.map(s => s.id === id
+          ? { ...s, loadingPrice: false, searchError: data.error ?? "종목을 찾을 수 없습니다" }
+          : s
+        ));
+      }
+    } catch {
+      setStocks(prev => prev.map(s => s.id === id
+        ? { ...s, loadingPrice: false, searchError: "검색 오류" }
+        : s
+      ));
+    }
+  }
+
+  // ── 주식 blur 핸들러 ─────────────────────────────────────────
+  function handleStockBlur(id: string, market: "KR" | "US", name: string) {
+    if (market === "KR") {
+      searchAndFetchKrStock(id, name);
+    } else {
+      const ticker = name.trim().toUpperCase();
+      if (ticker) {
+        setStocks(prev => prev.map(s => s.id === id ? { ...s, symbol: ticker } : s));
+        fetchStockPriceBySymbol(id, ticker);
+      }
     }
   }
 
@@ -157,8 +210,12 @@ export default function AssetRecordPage() {
         deposit: toNum(e.deposit),
       })),
       stocks: stocks.map(e => ({
-        symbol: e.symbol, qty: Number(e.qty) || 0,
-        price: e.price ?? 0, currency: e.priceCurrency,
+        market: e.market,
+        name: e.name,
+        symbol: e.symbol,
+        qty: Number(e.qty) || 0,
+        price: e.price ?? 0,
+        currency: e.priceCurrency,
         amount: e.price ? e.price * (Number(e.qty) || 0) * (e.priceCurrency === "USD" ? usdtNum : 1) : 0,
       })),
       irp: irpNum,
@@ -305,7 +362,7 @@ export default function AssetRecordPage() {
                       key={e.id} entry={e} usdtNum={usdtNum}
                       onUpdate={p => updateStock(e.id, p)}
                       onDelete={() => setStocks(prev => prev.filter(x => x.id !== e.id))}
-                      onFetchPrice={() => fetchStockPrice(e.id, e.symbol)}
+                      onBlur={() => handleStockBlur(e.id, e.market, e.name)}
                     />
                   ))}
                   {stocks.length === 0 && (
@@ -570,48 +627,89 @@ function DomesticCard({ entry, onUpdate, onDelete }: {
   );
 }
 
-function StockCard({ entry, usdtNum, onUpdate, onDelete, onFetchPrice }: {
+function StockCard({ entry, usdtNum, onUpdate, onDelete, onBlur }: {
   entry: StockEntry; usdtNum: number;
   onUpdate: (p: Partial<StockEntry>) => void;
   onDelete: () => void;
-  onFetchPrice: () => void;
+  onBlur: () => void;
 }) {
   const qty    = Number(entry.qty) || 0;
   const amount = entry.price
     ? entry.price * qty * (entry.priceCurrency === "USD" ? usdtNum : 1)
     : 0;
 
+  const isKR = entry.market === "KR";
+
   return (
-    <div className="bg-muted/40 border border-border rounded-lg p-2">
+    <div className="bg-muted/40 border border-border rounded-lg p-2 flex flex-col gap-1.5">
+
+      {/* ── 행 1: KR/US 토글 + 입력 + 수량 + 삭제 ── */}
       <div className="flex items-center gap-1.5">
+        {/* 한국/미국 토글 */}
+        <div className="flex shrink-0 rounded-lg overflow-hidden border border-border">
+          {(["KR", "US"] as const).map(m => (
+            <button
+              key={m}
+              onClick={() => onUpdate({ market: m, name: "", symbol: "", price: null, searchError: "", priceCurrency: m === "KR" ? "KRW" : "USD" })}
+              className={`px-1.5 py-1 text-[10px] font-bold transition-colors ${
+                entry.market === m
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+
+        {/* 종목명(KR) 또는 티커(US) 입력 */}
         <input
-          value={entry.symbol}
-          onChange={e => onUpdate({ symbol: e.target.value, price: null })}
-          onBlur={onFetchPrice}
-          placeholder="005930.KS"
-          className="flex-1 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none font-mono"
+          value={entry.name}
+          onChange={e => onUpdate({ name: e.target.value, symbol: "", price: null, searchError: "" })}
+          onBlur={onBlur}
+          placeholder={isKR ? "삼성전자" : "AAPL"}
+          className="flex-1 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none min-w-0"
         />
+
+        {/* 수량 */}
         <input
           inputMode="numeric"
           value={entry.qty}
           onChange={e => onUpdate({ qty: e.target.value })}
           placeholder="수량"
-          className="w-16 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none tabular-nums text-right"
+          className="w-14 text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-foreground outline-none tabular-nums text-right shrink-0"
         />
+
         <button onClick={onDelete} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0 p-0.5">
           <X size={13} />
         </button>
       </div>
-      <div className="flex items-center justify-between mt-1 px-0.5">
-        {entry.loadingPrice ? (
-          <span className="text-[10px] text-muted-foreground">현재가 조회 중...</span>
-        ) : entry.price != null ? (
-          <span className="text-[10px] text-muted-foreground">
-            현재가 {entry.price.toLocaleString()}{entry.priceCurrency === "USD" ? "$" : "원"}
-          </span>
-        ) : (
-          <span className="text-[10px] text-muted-foreground">심볼 입력 후 포커스 이동</span>
-        )}
+
+      {/* ── 행 2: 상태 표시 ── */}
+      <div className="flex items-center justify-between px-0.5">
+        <div className="flex flex-col gap-0.5">
+          {entry.loadingPrice && (
+            <span className="text-[10px] text-muted-foreground">
+              {isKR ? "종목 검색 중..." : "현재가 조회 중..."}
+            </span>
+          )}
+          {!entry.loadingPrice && entry.searchError && (
+            <span className="text-[10px] text-red-400">{entry.searchError}</span>
+          )}
+          {!entry.loadingPrice && !entry.searchError && entry.price != null && (
+            <span className="text-[10px] text-muted-foreground">
+              {isKR && entry.symbol && (
+                <span className="text-muted-foreground/60 mr-1">{entry.symbol}</span>
+              )}
+              현재가 {entry.price.toLocaleString()}{entry.priceCurrency === "USD" ? "$" : "원"}
+            </span>
+          )}
+          {!entry.loadingPrice && !entry.searchError && entry.price == null && (
+            <span className="text-[10px] text-muted-foreground">
+              {isKR ? "종목명 입력 후 포커스 이동" : "티커 입력 후 포커스 이동"}
+            </span>
+          )}
+        </div>
         {amount > 0 && (
           <span className="text-[10px] font-semibold text-foreground tabular-nums">{fmtKrw(amount)}</span>
         )}
