@@ -2,20 +2,55 @@
 
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
-const DUMMY = {
-  kimp: "3.2%",
-  usdt: "1,482",
-  usd: "1,480",
-  usdcUsdt: "0.9998",
-};
+interface MarketData {
+  bestAsk: number;
+  bestBid: number;
+  usdKrw: number;
+}
 
 export default function TopBar() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [data, setData] = useState<MarketData | null>(null);
 
-  useEffect(() => setMounted(true), []);
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch("/api/market-data");
+      if (!res.ok) return;
+      const json = await res.json();
+      if (!json.error) setData(json);
+    } catch {
+      /* 무시 */
+    }
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
+    fetchData();
+    const id = setInterval(fetchData, 30_000);
+    return () => clearInterval(id);
+  }, [fetchData]);
+
+  // KIMP: 매수 하단호가 기준
+  const kimpPct =
+    data && data.usdKrw > 0
+      ? (data.bestBid / data.usdKrw - 1) * 100
+      : null;
+  const kimpDiff =
+    data && data.usdKrw > 0 ? data.bestBid - data.usdKrw : null;
+
+  const kimpColor =
+    kimpPct == null
+      ? "text-muted-foreground"
+      : kimpPct > 0
+      ? "text-emerald-500"
+      : kimpPct < 0
+      ? "text-red-400"
+      : "text-foreground";
+
+  const sign = kimpPct != null && kimpPct >= 0 ? "+" : "";
 
   return (
     <header
@@ -23,13 +58,50 @@ export default function TopBar() {
       style={{ height: "var(--topbar-h, 48px)" }}
     >
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <Chip label="KIMP" value={DUMMY.kimp} valueColor="text-emerald-500" />
+
+        {/* KIMP */}
+        <div className="flex flex-col justify-center shrink-0">
+          <span className="text-[10px] text-muted-foreground font-medium leading-none mb-[2px]">
+            KIMP
+          </span>
+          {kimpPct != null && kimpDiff != null ? (
+            <>
+              <span className={`text-[11px] font-bold leading-none tabular-nums ${kimpColor}`}>
+                {sign}{kimpPct.toFixed(2)}%
+              </span>
+              <span className={`text-[9px] font-bold leading-none tabular-nums mt-[1px] ${kimpColor}`}>
+                {sign}{kimpDiff.toFixed(1)}원
+              </span>
+            </>
+          ) : (
+            <span className="text-[11px] font-bold leading-none text-muted-foreground">—</span>
+          )}
+        </div>
+
         <Sep />
-        <Chip label="USDT" value={DUMMY.usdt} />
+
+        {/* USDT: 매도상단호가 / 매수하단호가 */}
+        <div className="flex flex-col justify-center shrink-0">
+          <span className="text-[10px] text-muted-foreground font-medium leading-none mb-[2px]">
+            USDT
+          </span>
+          <span className="text-[11px] font-bold leading-none tabular-nums text-foreground">
+            {data
+              ? `${Math.round(data.bestAsk).toLocaleString()} / ${Math.round(data.bestBid).toLocaleString()}`
+              : "— / —"}
+          </span>
+        </div>
+
         <Sep />
-        <Chip label="USD" value={DUMMY.usd} />
-        <Sep />
-        <Chip label="USDC" value={DUMMY.usdcUsdt} />
+
+        {/* USD/KRW */}
+        <div className="flex items-baseline gap-0.5 shrink-0">
+          <span className="text-[10px] text-muted-foreground font-medium leading-none">USD</span>
+          <span className="text-[11px] font-bold leading-none tabular-nums text-foreground">
+            {data ? data.usdKrw.toLocaleString("ko-KR", { maximumFractionDigits: 1 }) : "—"}
+          </span>
+        </div>
+
       </div>
 
       <button
@@ -46,30 +118,5 @@ export default function TopBar() {
 function Sep() {
   return (
     <span className="text-[10px] text-border select-none shrink-0">|</span>
-  );
-}
-
-function Chip({
-  label,
-  value,
-  valueColor,
-}: {
-  label: string;
-  value: string;
-  valueColor?: string;
-}) {
-  return (
-    <div className="flex items-baseline gap-0.5 shrink-0">
-      <span className="text-[10px] text-muted-foreground font-medium leading-none">
-        {label}
-      </span>
-      <span
-        className={`text-[11px] font-bold leading-none tabular-nums ${
-          valueColor ?? "text-foreground"
-        }`}
-      >
-        {value}
-      </span>
-    </div>
   );
 }
