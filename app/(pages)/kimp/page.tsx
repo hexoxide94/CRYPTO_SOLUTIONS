@@ -261,10 +261,10 @@ export default function KimpPage() {
                     }}
                   />
                   {chartOpen.length > 0 && (
-                    <Scatter data={chartOpen} fill="#EF4444" onClick={(d: any) => openSheet(d.trade)} />
+                    <Scatter data={chartOpen} fill="#EF4444" onClick={(d) => openSheet((d as unknown as { trade: KimpTrade }).trade)} />
                   )}
                   {chartClosed.length > 0 && (
-                    <Scatter data={chartClosed} fill="#3B82F6" onClick={(d: any) => openSheet(d.trade)} />
+                    <Scatter data={chartClosed} fill="#3B82F6" onClick={(d) => openSheet((d as unknown as { trade: KimpTrade }).trade)} />
                   )}
                 </ScatterChart>
               </ResponsiveContainer>
