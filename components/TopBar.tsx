@@ -153,19 +153,12 @@ export default function TopBar() {
       <div className="flex items-center gap-2 flex-1 min-w-0">
 
         {/* KIMP */}
-        <div className="flex flex-col justify-center shrink-0">
-          <span className="text-[10px] text-muted-foreground font-medium leading-none mb-[2px]">
-            KIMP
-          </span>
+        <div className="flex items-baseline gap-0.5 shrink-0">
+          <span className="text-[10px] text-muted-foreground font-medium leading-none">KIMP</span>
           {kimpPct != null && kimpDiff != null ? (
-            <>
-              <span className={`text-[11px] font-bold leading-none tabular-nums ${kimpColor}`}>
-                {sign}{kimpPct.toFixed(2)}%
-              </span>
-              <span className={`text-[9px] font-bold leading-none tabular-nums mt-[1px] ${kimpColor}`}>
-                {sign}{kimpDiff.toFixed(1)}원
-              </span>
-            </>
+            <span className={`text-[11px] font-bold leading-none tabular-nums ${kimpColor}`}>
+              {sign}{kimpPct.toFixed(2)}% ({sign}{kimpDiff.toFixed(1)}원)
+            </span>
           ) : (
             <span className="text-[11px] font-bold leading-none text-muted-foreground">—</span>
           )}
