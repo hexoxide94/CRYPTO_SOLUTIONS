@@ -167,10 +167,8 @@ export default function TopBar() {
         <Sep />
 
         {/* USDT: 매도상단호가 / 매수하단호가 */}
-        <div className="flex flex-col justify-center shrink-0">
-          <span className="text-[10px] text-muted-foreground font-medium leading-none mb-[2px]">
-            USDT
-          </span>
+        <div className="flex items-baseline gap-0.5 shrink-0">
+          <span className="text-[10px] text-muted-foreground font-medium leading-none">USDT</span>
           <span className="text-[11px] font-bold leading-none tabular-nums text-foreground">
             {usdt
               ? `${Math.round(usdt.bestAsk).toLocaleString()} / ${Math.round(usdt.bestBid).toLocaleString()}`

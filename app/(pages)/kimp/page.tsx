@@ -62,12 +62,13 @@ function fmtKimpDisplay(stable: number, dollar: number): string {
 
 // ═══════════════════════════════════════════════════════════════
 export default function KimpPage() {
-  const [trades, setTrades]       = useState<KimpTrade[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm]           = useState<FormState>(defaultForm());
-  const [saving, setSaving]       = useState(false);
+  const [trades, setTrades]         = useState<KimpTrade[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [sheetOpen, setSheetOpen]   = useState(false);
+  const [editingId, setEditingId]   = useState<number | null>(null);
+  const [form, setForm]             = useState<FormState>(defaultForm());
+  const [saving, setSaving]         = useState(false);
+  const [chartMode, setChartMode]   = useState<"kimp" | "diff">("kimp");
 
   // ── 데이터 로드 ──────────────────────────────────────────────
   const fetchTrades = useCallback(async () => {
@@ -87,10 +88,19 @@ export default function KimpPage() {
   const netPosition = openTotal - closedTotal;
 
   // ── 차트 데이터 ─────────────────────────────────────────────
+  const getY = (t: KimpTrade) =>
+    chartMode === "kimp"
+      ? calcKimp(t.sell_price_krw, Number(t.buy_price_usdt))
+      : t.sell_price_krw - Number(t.buy_price_usdt);
+
   const chartOpen   = trades.filter(t => t.status === "open")
-    .map(t => ({ x: new Date(t.traded_at).getTime(), y: t.sell_price_krw, trade: t }));
+    .map(t => ({ x: new Date(t.traded_at).getTime(), y: getY(t), trade: t }));
   const chartClosed = trades.filter(t => t.status === "closed")
-    .map(t => ({ x: new Date(t.traded_at).getTime(), y: t.sell_price_krw, trade: t }));
+    .map(t => ({ x: new Date(t.traded_at).getTime(), y: getY(t), trade: t }));
+
+  const yTickFmt = chartMode === "kimp"
+    ? (v: number) => `${v.toFixed(1)}%`
+    : (v: number) => `${Math.round(v)}`;
 
   // ── 시트 ────────────────────────────────────────────────────
   function openSheet(trade?: KimpTrade) {
@@ -186,7 +196,28 @@ export default function KimpPage() {
         {/* ── 차트 ── */}
         {trades.length > 0 && (
           <div className="bg-card border border-border rounded-xl p-3">
-            <p className="text-[11px] text-muted-foreground font-medium mb-2">스테이블 가격 추이</p>
+            {/* 헤더: 제목 + 토글 */}
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] text-muted-foreground font-medium">
+                {chartMode === "kimp" ? "김프율 추이 (%)" : "스테이블−달러 차이값 (원)"}
+              </p>
+              <div className="flex rounded-lg overflow-hidden border border-border">
+                {(["kimp", "diff"] as const).map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setChartMode(m)}
+                    className={`px-2 py-0.5 text-[10px] font-bold transition-colors ${
+                      chartMode === m
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {m === "kimp" ? "김프%" : "차이값"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div style={{ height: 160 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
@@ -204,7 +235,7 @@ export default function KimpPage() {
                     dataKey="y"
                     type="number"
                     domain={["auto", "auto"]}
-                    tickFormatter={(v) => v.toLocaleString()}
+                    tickFormatter={yTickFmt}
                     tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                     tickLine={false}
                     axisLine={false}
@@ -216,12 +247,14 @@ export default function KimpPage() {
                       if (!active || !payload?.length) return null;
                       const t = payload[0].payload.trade as KimpTrade;
                       const kimp = calcKimp(t.sell_price_krw, Number(t.buy_price_usdt));
+                      const diff = t.sell_price_krw - Number(t.buy_price_usdt);
                       return (
                         <div className="bg-card border border-border rounded-lg p-2 shadow-md text-xs space-y-0.5">
                           <p className="font-semibold text-foreground">{fmtTime(t.traded_at)}</p>
                           <p className="text-muted-foreground">스테이블: <span className="text-foreground">{t.sell_price_krw.toLocaleString()}원</span></p>
                           <p className="text-muted-foreground">달러: <span className="text-foreground">${Number(t.buy_price_usdt).toFixed(2)}</span></p>
                           <p className="text-muted-foreground">김프: <span className={kimp >= 0 ? "text-emerald-500" : "text-red-400"}>{kimp >= 0 ? "+" : ""}{kimp.toFixed(2)}%</span></p>
+                          <p className="text-muted-foreground">차이: <span className="text-foreground">{diff >= 0 ? "+" : ""}{diff.toFixed(1)}원</span></p>
                           <p className="text-muted-foreground">수량: <span className="text-foreground">{Number(t.amount).toLocaleString()} USDT</span></p>
                         </div>
                       );
@@ -247,9 +280,16 @@ export default function KimpPage() {
         {loading ? (
           <p className="text-center text-sm text-muted-foreground py-8">불러오는 중...</p>
         ) : trades.length === 0 ? (
-          <p className="text-center text-sm text-muted-foreground py-8">
-            등록된 매매 이력이 없습니다.
-          </p>
+          <div className="flex flex-col items-center gap-3 py-10">
+            <p className="text-sm text-muted-foreground">등록된 매매 이력이 없습니다.</p>
+            <button
+              onClick={() => openSheet()}
+              className="px-5 py-2.5 rounded-xl bg-muted border border-border text-sm font-semibold text-foreground flex items-center gap-1.5 active:opacity-70 transition-opacity"
+            >
+              <Plus size={14} />
+              현재 보유 포지션 입력
+            </button>
+          </div>
         ) : (
           <div className="flex flex-col gap-1">
             {trades.map((trade) => (
