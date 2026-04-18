@@ -28,16 +28,15 @@ export default function TopBar() {
   const retryRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeRef  = useRef(true); // 언마운트 시 재연결 방지
 
-  // ── USD/KRW 환율 (open.er-api.com은 CORS 허용) ─────────────────
+  // ── USD/KRW 환율 (한국투자증권 API, 서버사이드 프록시) ─────────────
   const fetchFx = useCallback(async () => {
     try {
-      const res = await fetch("https://open.er-api.com/v6/latest/USD");
+      const res = await fetch("/api/usd-rate");
+      if (!res.ok) return;
       const data = await res.json();
-      const krw = data?.rates?.KRW;
-      console.log("[TopBar] FX 응답:", krw ?? "없음");
-      if (krw) setUsdKrw(krw);
-    } catch (e) {
-      console.error("[TopBar] FX 호출 실패:", e);
+      if (data?.rate) setUsdKrw(data.rate);
+    } catch {
+      // 실패 시 이전 값 유지 (조용히 처리)
     }
   }, []);
 
