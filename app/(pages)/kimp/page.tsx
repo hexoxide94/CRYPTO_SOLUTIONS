@@ -281,7 +281,7 @@ export default function KimpPage() {
             {/* ── 그래프 ── */}
             <div style={{ height: 160 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ top: 4, right: 8, bottom: 0, left: 20 }}>
+                <ScatterChart margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="x"
@@ -389,17 +389,17 @@ export default function KimpPage() {
             {/* ── 옵션 패널 (absolute, 우하단) ── */}
             {showOptions && (
               <div
-                className="absolute bottom-9 right-3 z-10 border border-border rounded-xl bg-card shadow-lg overflow-hidden"
+                className="absolute bottom-9 right-3 z-10 border border-border rounded-xl bg-card shadow-lg"
                 style={{ width: "50%", maxWidth: 190 }}
               >
                 <div className="px-3 py-2 flex flex-col gap-2">
-                  <OptionToggle
+                  <OptionCheckbox
                     label="계약 수 표시"
                     description="2계약 이상 점 위에 숫자 표시"
                     value={showContracts}
                     onChange={setShowContracts}
                   />
-                  <OptionToggle
+                  <OptionCheckbox
                     label="연결선 표시"
                     description="매매 점을 시간순으로 선으로 연결"
                     value={showLine}
@@ -488,27 +488,23 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   );
 }
 
-// ─── 옵션 토글 행 ───────────────────────────────────────────────
-function OptionToggle({
+// ─── 옵션 체크박스 행 ───────────────────────────────────────────
+function OptionCheckbox({
   label, description, value, onChange,
 }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="flex items-center gap-2 w-full min-w-0">
-      <div className="flex-1 min-w-0">
+    <label className="flex items-start gap-2 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={value}
+        onChange={e => onChange(e.target.checked)}
+        className="mt-0.5 shrink-0 w-3.5 h-3.5 accent-foreground"
+      />
+      <div className="min-w-0">
         <p className="text-[11px] font-medium text-foreground leading-tight">{label}</p>
         <p className="text-[9px] text-muted-foreground leading-tight">{description}</p>
       </div>
-      <button
-        onClick={() => onChange(!value)}
-        style={{ width: 44, height: 24, flexShrink: 0 }}
-        className={`rounded-full transition-colors relative ${value ? "bg-foreground" : "bg-muted-foreground/30"}`}
-      >
-        <span
-          style={{ width: 18, height: 18, top: 3, position: "absolute" }}
-          className={`rounded-full bg-background shadow transition-transform ${value ? "translate-x-[22px]" : "translate-x-[3px]"}`}
-        />
-      </button>
-    </div>
+    </label>
   );
 }
 
