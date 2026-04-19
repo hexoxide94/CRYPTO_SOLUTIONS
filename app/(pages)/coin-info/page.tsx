@@ -1,7 +1,13 @@
 export default function CoinInfoPage() {
   return (
-    <div className="flex items-center justify-center h-full p-6">
-      <p className="text-muted-foreground text-sm">코인정보</p>
-    </div>
+    <iframe
+      src="https://kimpver103.vercel.app"
+      style={{
+        width: "100%",
+        height: "calc(100vh - var(--topbar-h, 48px) - var(--bottomnav-h, 60px))",
+        border: "none",
+        display: "block",
+      }}
+    />
   );
 }
