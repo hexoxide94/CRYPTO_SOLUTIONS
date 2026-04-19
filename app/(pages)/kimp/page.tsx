@@ -31,7 +31,7 @@ interface FormState {
   contracts: string;
 }
 
-type ChartRange = "1d" | "1w" | "1m" | "all";
+type ChartRange = "1h" | "1d" | "1w" | "1m" | "all";
 
 const defaultForm = (): FormState => ({
   trade_type: "open",
@@ -64,11 +64,16 @@ function fmtKimpDisplay(stable: number, dollar: number): string {
 
 function getRangeStart(range: ChartRange): number {
   const now = Date.now();
+  if (range === "1h") return now - 60 * 60 * 1000;
   if (range === "1d") return now - 24 * 60 * 60 * 1000;
   if (range === "1w") return now - 7 * 24 * 60 * 60 * 1000;
   if (range === "1m") return now - 30 * 24 * 60 * 60 * 1000;
   return 0;
 }
+
+const RANGE_LABELS: Record<ChartRange, string> = {
+  "1h": "1시간", "1d": "1일", "1w": "1주", "1m": "1달", "all": "전체",
+};
 
 // ═══════════════════════════════════════════════════════════════
 export default function KimpPage() {
@@ -80,10 +85,10 @@ export default function KimpPage() {
   const [saving, setSaving]               = useState(false);
   const [chartMode, setChartMode]         = useState<"kimp" | "diff">("kimp");
   const [chartRange, setChartRange]       = useState<ChartRange>("all");
+  const [equalInterval, setEqualInterval] = useState(false);
   const [showOptions, setShowOptions]     = useState(false);
   const [showContracts, setShowContracts] = useState(false);
-  const [equalInterval, setEqualInterval] = useState(false);
-  const [showTrend, setShowTrend]         = useState(false);
+  const [showLine, setShowLine]           = useState(false);
 
   // ── 데이터 로드 ──────────────────────────────────────────────
   const fetchTrades = useCallback(async () => {
@@ -140,15 +145,14 @@ export default function KimpPage() {
     return function ChartDot(props: any) {
       const { cx, cy, payload } = props;
       const contracts: number = payload?.trade?.detail_json?.contracts ?? 0;
-      const r = showContracts ? 12 : 5;
       return (
         <g>
-          <circle cx={cx} cy={cy} r={r} fill={color} />
+          <circle cx={cx} cy={cy} r={5} fill={color} />
           {showContracts && contracts > 1 && (
             <text
-              x={cx} y={cy}
-              textAnchor="middle" dominantBaseline="central"
-              fontSize={7} fontWeight="bold" fill="white"
+              x={cx} y={cy - 8}
+              textAnchor="middle"
+              fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))"
             >
               {contracts}
             </text>
@@ -157,6 +161,12 @@ export default function KimpPage() {
       );
     };
   }
+
+  // ── 공통 툴바 버튼 스타일 ────────────────────────────────────
+  const tbBtn = (active: boolean) =>
+    `px-1.5 py-0.5 text-[10px] font-medium rounded transition-colors ${
+      active ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"
+    }`;
 
   // ── 시트 ────────────────────────────────────────────────────
   function openSheet(trade?: KimpTrade) {
@@ -248,46 +258,27 @@ export default function KimpPage() {
 
         {/* ── 차트 ── */}
         {trades.length > 0 && (
-          <div className="bg-card border border-border rounded-xl p-3">
-            {/* 헤더: 제목 + 모드 토글 */}
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] text-muted-foreground font-medium">
-                {chartMode === "kimp" ? "김프매매 이력(%)" : "김프매매 이력(SKEW)"}
-              </p>
-              <div className="flex rounded-lg overflow-hidden border border-border">
-                {(["kimp", "diff"] as const).map(m => (
-                  <button
-                    key={m}
-                    onClick={() => setChartMode(m)}
-                    className={`px-2 py-0.5 text-[10px] font-bold transition-colors ${
-                      chartMode === m
-                        ? "bg-foreground text-background"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {m === "kimp" ? "김프%" : "차이값"}
+          <div className="bg-card border border-border rounded-xl p-3 relative">
+
+            {/* ── 툴바: 기간(왼쪽) + 모드/등간격(오른쪽) ── */}
+            <div className="flex items-center justify-between gap-1 mb-2">
+              {/* 기간 버튼 */}
+              <div className="flex gap-0.5">
+                {(["1h", "1d", "1w", "1m", "all"] as const).map(r => (
+                  <button key={r} onClick={() => setChartRange(r)} className={tbBtn(chartRange === r)}>
+                    {RANGE_LABELS[r]}
                   </button>
                 ))}
               </div>
+              {/* 모드 + 등간격 버튼 */}
+              <div className="flex gap-0.5">
+                <button onClick={() => setChartMode("kimp")}  className={tbBtn(chartMode === "kimp")}>%</button>
+                <button onClick={() => setChartMode("diff")}  className={tbBtn(chartMode === "diff")}>원</button>
+                <button onClick={() => setEqualInterval(v => !v)} className={tbBtn(equalInterval)}>등간격</button>
+              </div>
             </div>
 
-            {/* 기간 선택 버튼 */}
-            <div className="flex gap-1 mb-2">
-              {(["1d", "1w", "1m", "all"] as const).map(r => (
-                <button
-                  key={r}
-                  onClick={() => setChartRange(r)}
-                  className={`px-2 py-0.5 text-[10px] rounded-md font-medium transition-colors ${
-                    chartRange === r
-                      ? "bg-foreground text-background"
-                      : "bg-muted text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {r === "1d" ? "1일" : r === "1w" ? "1주" : r === "1m" ? "1달" : "전체"}
-                </button>
-              ))}
-            </div>
-
+            {/* ── 그래프 ── */}
             <div style={{ height: 160 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart margin={{ top: 4, right: 8, bottom: 0, left: 20 }}>
@@ -339,6 +330,28 @@ export default function KimpPage() {
                       );
                     }}
                   />
+                  {/* 연결선: 점보다 먼저 렌더해서 점이 위에 올라오도록 */}
+                  {showLine && allChartPoints.length > 1 && (
+                    <Customized
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      component={(chartProps: any) => {
+                        const xScale = Object.values(chartProps.xAxisMap ?? {})[0] as { scale?: (v: number) => number } | undefined;
+                        const yScale = Object.values(chartProps.yAxisMap ?? {})[0] as { scale?: (v: number) => number } | undefined;
+                        if (!xScale?.scale || !yScale?.scale) return null;
+                        const pts = allChartPoints
+                          .map(p => `${xScale.scale!(p.x)},${yScale.scale!(p.y)}`)
+                          .join(" ");
+                        return (
+                          <polyline
+                            points={pts}
+                            fill="none"
+                            stroke="rgba(200,200,200,0.25)"
+                            strokeWidth={1}
+                          />
+                        );
+                      }}
+                    />
+                  )}
                   {chartOpen.length > 0 && (
                     <Scatter
                       data={chartOpen}
@@ -353,34 +366,11 @@ export default function KimpPage() {
                       onClick={(d) => openSheet((d as unknown as { trade: KimpTrade }).trade)}
                     />
                   )}
-                  {showTrend && allChartPoints.length > 1 && (
-                    <Customized
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      component={(chartProps: any) => {
-                        const xScale = Object.values(chartProps.xAxisMap ?? {})[0] as { scale?: (v: number) => number } | undefined;
-                        const yScale = Object.values(chartProps.yAxisMap ?? {})[0] as { scale?: (v: number) => number } | undefined;
-                        if (!xScale?.scale || !yScale?.scale) return null;
-                        const pts = allChartPoints
-                          .map(p => `${xScale.scale!(p.x)},${yScale.scale!(p.y)}`)
-                          .join(" ");
-                        return (
-                          <polyline
-                            points={pts}
-                            fill="none"
-                            stroke="hsl(var(--muted-foreground))"
-                            strokeOpacity={0.35}
-                            strokeWidth={1}
-                            strokeDasharray="4 6"
-                          />
-                        );
-                      }}
-                    />
-                  )}
                 </ScatterChart>
               </ResponsiveContainer>
             </div>
 
-            {/* 범례 + 설정 버튼 */}
+            {/* ── 범례 + 설정 버튼 ── */}
             <div className="flex items-center justify-between mt-1">
               <div className="flex gap-3">
                 <LegendDot color="#EF4444" label="진입" />
@@ -396,27 +386,26 @@ export default function KimpPage() {
               </button>
             </div>
 
-            {/* 옵션 패널 */}
+            {/* ── 옵션 패널 (absolute, 우하단) ── */}
             {showOptions && (
-              <div className="mt-2 border border-border rounded-xl px-3 py-2 flex flex-col gap-2 bg-muted/40 w-full overflow-hidden">
-                <OptionToggle
-                  label="계약 수 표시"
-                  description="점 위에 계약 수 표시 (2계약 이상)"
-                  value={showContracts}
-                  onChange={setShowContracts}
-                />
-                <OptionToggle
-                  label="등간격 보기"
-                  description="X축을 거래 순서 기준으로 표시"
-                  value={equalInterval}
-                  onChange={setEqualInterval}
-                />
-                <OptionToggle
-                  label="추세선 표시"
-                  description="매매 점을 시간순으로 흐린 점선으로 연결"
-                  value={showTrend}
-                  onChange={setShowTrend}
-                />
+              <div
+                className="absolute bottom-9 right-3 z-10 border border-border rounded-xl bg-card shadow-lg overflow-hidden"
+                style={{ width: "50%", maxWidth: 190 }}
+              >
+                <div className="px-3 py-2 flex flex-col gap-2">
+                  <OptionToggle
+                    label="계약 수 표시"
+                    description="2계약 이상 점 위에 숫자 표시"
+                    value={showContracts}
+                    onChange={setShowContracts}
+                  />
+                  <OptionToggle
+                    label="연결선 표시"
+                    description="매매 점을 시간순으로 선으로 연결"
+                    value={showLine}
+                    onChange={setShowLine}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -504,16 +493,20 @@ function OptionToggle({
   label, description, value, onChange,
 }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="flex items-center justify-between gap-3 w-full min-w-0">
+    <div className="flex items-center gap-2 w-full min-w-0">
       <div className="flex-1 min-w-0">
-        <p className="text-[11px] font-medium text-foreground">{label}</p>
-        <p className="text-[10px] text-muted-foreground">{description}</p>
+        <p className="text-[11px] font-medium text-foreground leading-tight">{label}</p>
+        <p className="text-[9px] text-muted-foreground leading-tight">{description}</p>
       </div>
       <button
         onClick={() => onChange(!value)}
-        className={`shrink-0 w-9 h-5 rounded-full transition-colors relative ${value ? "bg-foreground" : "bg-muted-foreground/30"}`}
+        style={{ width: 44, height: 24, flexShrink: 0 }}
+        className={`rounded-full transition-colors relative ${value ? "bg-foreground" : "bg-muted-foreground/30"}`}
       >
-        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-background shadow transition-transform ${value ? "translate-x-4" : "translate-x-0.5"}`} />
+        <span
+          style={{ width: 18, height: 18, top: 3, position: "absolute" }}
+          className={`rounded-full bg-background shadow transition-transform ${value ? "translate-x-[22px]" : "translate-x-[3px]"}`}
+        />
       </button>
     </div>
   );
@@ -529,7 +522,6 @@ function TradeRow({
 
   return (
     <div className="flex items-center gap-1.5 bg-card border border-border rounded-lg px-2 py-2">
-      {/* 뱃지 */}
       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
         isOpen
           ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
@@ -537,13 +529,9 @@ function TradeRow({
       }`}>
         {isOpen ? "진입" : "청산"}
       </span>
-
-      {/* 시각 */}
       <span className="text-[10px] text-muted-foreground tabular-nums shrink-0 w-[58px]">
         {fmtTime(trade.traded_at)}
       </span>
-
-      {/* 가격·김프 (flex-1) */}
       <div className="flex-1 min-w-0 flex items-center gap-1 text-[10px] tabular-nums overflow-hidden">
         <span className="text-foreground font-medium">{trade.sell_price_krw.toLocaleString()}</span>
         <span className="text-border">|</span>
@@ -553,13 +541,9 @@ function TradeRow({
           {sign}{kimp.toFixed(2)}%
         </span>
       </div>
-
-      {/* 수량 */}
       <span className="text-[10px] font-semibold tabular-nums shrink-0 text-foreground">
         {Number(trade.amount).toLocaleString()}U
       </span>
-
-      {/* 버튼 */}
       <div className="flex shrink-0">
         <button onClick={onEdit}
           className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
@@ -606,12 +590,9 @@ function SheetForm({
 
   return (
     <div className="flex flex-col">
-      {/* 핸들 */}
       <div className="flex justify-center pt-3 pb-1">
         <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
       </div>
-
-      {/* 헤더 */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <h2 className="text-base font-bold text-foreground">
           {editingId ? "매매 수정" : "매매 등록"}
@@ -621,11 +602,7 @@ function SheetForm({
           <X size={18} />
         </button>
       </div>
-
-      {/* 폼 */}
       <div className="px-4 pt-3 pb-4 flex flex-col gap-3 overflow-y-auto" style={{ maxHeight: "68vh" }}>
-
-        {/* 진입 / 청산 토글 */}
         <div className="flex gap-2">
           {(["open", "closed"] as const).map(t => (
             <button
@@ -641,8 +618,6 @@ function SheetForm({
             </button>
           ))}
         </div>
-
-        {/* 가격 2열 */}
         <div className="grid grid-cols-2 gap-2">
           <div>
             <FLabel>스테이블 가격 (원)</FLabel>
@@ -653,8 +628,6 @@ function SheetForm({
             <FInput value={form.dollar_price} onChange={v => patch({ dollar_price: v })} placeholder="1476.3" inputMode="decimal" />
           </div>
         </div>
-
-        {/* 김프 실시간 표시 */}
         {stable > 0 && dollar > 0 && (
           <div className="bg-muted rounded-xl px-3 py-2 flex items-center justify-between">
             <span className="text-xs text-muted-foreground">김프</span>
@@ -665,8 +638,6 @@ function SheetForm({
             </span>
           </div>
         )}
-
-        {/* 수량 / 계약 수 연동 */}
         <div className="grid grid-cols-2 gap-2">
           <div>
             <FLabel>수량 (USDT)</FLabel>
@@ -677,8 +648,6 @@ function SheetForm({
             <FInput value={form.contracts} onChange={handleContractsChange} placeholder="1" inputMode="numeric" />
           </div>
         </div>
-
-        {/* 버튼 */}
         <div className="flex gap-2 pt-1">
           <button onClick={onClose}
             className="flex-1 py-3 rounded-xl border border-border text-sm font-medium text-foreground active:opacity-70">
