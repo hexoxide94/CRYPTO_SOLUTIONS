@@ -73,8 +73,21 @@ function getRangeStart(range: ChartRange | SummaryRange): number {
   return 0;
 }
 
-function computeXTicks(range: ChartRange, now: number): number[] | undefined {
-  if (range === "all") return undefined;
+function computeXTicks(range: ChartRange, filteredAll: KimpTrade[]): number[] | undefined {
+  const now = Date.now();
+
+  if (range === "all") {
+    if (filteredAll.length < 2) return undefined;
+    const timestamps = filteredAll.map(t => new Date(t.traded_at).getTime());
+    const minT = Math.min(...timestamps);
+    const maxT = Math.max(...timestamps);
+    const span = maxT - minT;
+    if (span <= 0) return undefined;
+    const ticks: number[] = [];
+    for (let i = 0; i <= 5; i++) ticks.push(Math.round(minT + (span * i) / 5));
+    return ticks;
+  }
+
   const rangeStart = getRangeStart(range);
 
   if (range === "1w" || range === "1m") {
@@ -96,6 +109,12 @@ function computeXTicks(range: ChartRange, now: number): number[] | undefined {
 }
 
 function xTickFormatter(range: ChartRange, equalInterval: boolean, filteredAll: KimpTrade[]) {
+  const allSpanMs = (() => {
+    if (range !== "all" || filteredAll.length < 2) return Infinity;
+    const ts = filteredAll.map(t => new Date(t.traded_at).getTime());
+    return Math.max(...ts) - Math.min(...ts);
+  })();
+
   return (v: number): string => {
     if (equalInterval) {
       const t = filteredAll[Math.round(v)];
@@ -106,6 +125,11 @@ function xTickFormatter(range: ChartRange, equalInterval: boolean, filteredAll: 
     const d = new Date(v);
     if (range === "1h" || range === "1d") {
       return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
+    if (range === "all") {
+      return allSpanMs <= 86_400_000
+        ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+        : `${d.getMonth() + 1}/${d.getDate()}`;
     }
     return `${d.getMonth() + 1}/${d.getDate()}`;
   };
@@ -202,7 +226,7 @@ export default function KimpPage() {
 
   const xDomain = equalInterval
     ? ([0, Math.max(filteredAll.length - 1, 1)] as [number, number])
-    : (["dataMin - 3600000", "dataMax + 3600000"] as [string, string]);
+    : (["dataMin", "dataMax"] as [string, string]);
 
   const yTickFmt = chartMode === "kimp"
     ? (v: number) => `${v.toFixed(1)}%`
@@ -358,7 +382,7 @@ export default function KimpPage() {
                     dataKey="x" type="number"
                     scale={equalInterval ? "linear" : "time"}
                     domain={xDomain}
-                    ticks={equalInterval ? undefined : computeXTicks(chartRange, Date.now())}
+                    ticks={equalInterval ? undefined : computeXTicks(chartRange, filteredAll)}
                     tickFormatter={xTickFormatter(chartRange, equalInterval, filteredAll)}
                     tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                     tickLine={false}
