@@ -266,7 +266,9 @@ export default function KimpPage() {
     const stable    = toNum(form.stable_price);
     const dollar    = toNum(form.dollar_price);
     const kimp      = calcKimp(stable, dollar);
-    const amount    = toNum(form.amount);
+    const amount    = form.futures_type === "overseas" && contracts > 0 && dollar > 0
+      ? Math.round(contracts * KRW_PER_OVERSEAS_CONTRACT / dollar)
+      : toNum(form.amount);
     const contracts = toNum(form.contracts);
     const tradedAt  = form.traded_at
       ? new Date(form.traded_at).toISOString()
@@ -619,6 +621,12 @@ function SheetForm({
   const kimpVal    = calcKimp(stable, dollar);
   const kimpDisplay = fmtKimpDisplay(stable, dollar);
 
+  function calcOverseasAmount(contracts: number, rate: number): string {
+    return contracts > 0 && rate > 0
+      ? String(Math.round(contracts * KRW_PER_OVERSEAS_CONTRACT / rate))
+      : "";
+  }
+
   function handleAmountChange(v: string) {
     const n = toNum(v);
     if (form.futures_type === "overseas") {
@@ -635,11 +643,20 @@ function SheetForm({
     const n = toNum(v);
     if (form.futures_type === "overseas") {
       const rate = toNum(form.dollar_price);
-      const a = rate > 0 && n > 0 ? String(Math.round(n * KRW_PER_OVERSEAS_CONTRACT / rate)) : "";
-      patch({ contracts: v, amount: a });
+      patch({ contracts: v, amount: calcOverseasAmount(n, rate) });
     } else {
       const a = n > 0 ? String(n * USDT_PER_DOMESTIC_CONTRACT) : "";
       patch({ contracts: v, amount: a });
+    }
+  }
+
+  function handleDollarPriceChange(v: string) {
+    if (form.futures_type === "overseas") {
+      const rate = toNum(v);
+      const contracts = toNum(form.contracts);
+      patch({ dollar_price: v, amount: calcOverseasAmount(contracts, rate) });
+    } else {
+      patch({ dollar_price: v });
     }
   }
 
@@ -703,7 +720,7 @@ function SheetForm({
           </div>
           <div>
             <FLabel>원달러 환율</FLabel>
-            <FInput value={form.dollar_price} onChange={v => patch({ dollar_price: v })} inputMode="decimal" />
+            <FInput value={form.dollar_price} onChange={handleDollarPriceChange} inputMode="decimal" />
           </div>
         </div>
 
