@@ -6,20 +6,20 @@ import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Settings } from "lucide-react";
 
 // ─── 상수 ──────────────────────────────────────────────────────
-const USDT_PER_CONTRACT = 10_000; // 국내선물 1계약 = 10,000 USDT
+const USDT_PER_CONTRACT = 10_000;
 
 // ─── 타입 ──────────────────────────────────────────────────────
 interface KimpTrade {
   id: number;
   traded_at: string;
   status: "open" | "closed";
-  sell_price_krw: number;   // 스테이블 가격 (원)
-  buy_price_usdt: number;   // 달러 현물가 ($)
-  kimp_rate: number;        // 김프율 (%)
-  amount: number;           // USDT 수량
+  sell_price_krw: number;
+  buy_price_usdt: number;
+  kimp_rate: number;
+  amount: number;
   detail_json: { contracts: number };
 }
 
@@ -30,6 +30,8 @@ interface FormState {
   amount: string;
   contracts: string;
 }
+
+type ChartRange = "1d" | "1w" | "1m" | "all";
 
 const defaultForm = (): FormState => ({
   trade_type: "open",
@@ -60,15 +62,27 @@ function fmtKimpDisplay(stable: number, dollar: number): string {
   return `${sign}${pct.toFixed(2)}% (${sign}${diff.toFixed(1)}원)`;
 }
 
+function getRangeStart(range: ChartRange): number {
+  const now = Date.now();
+  if (range === "1d") return now - 24 * 60 * 60 * 1000;
+  if (range === "1w") return now - 7 * 24 * 60 * 60 * 1000;
+  if (range === "1m") return now - 30 * 24 * 60 * 60 * 1000;
+  return 0;
+}
+
 // ═══════════════════════════════════════════════════════════════
 export default function KimpPage() {
-  const [trades, setTrades]         = useState<KimpTrade[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [sheetOpen, setSheetOpen]   = useState(false);
-  const [editingId, setEditingId]   = useState<number | null>(null);
-  const [form, setForm]             = useState<FormState>(defaultForm());
-  const [saving, setSaving]         = useState(false);
-  const [chartMode, setChartMode]   = useState<"kimp" | "diff">("kimp");
+  const [trades, setTrades]               = useState<KimpTrade[]>([]);
+  const [loading, setLoading]             = useState(true);
+  const [sheetOpen, setSheetOpen]         = useState(false);
+  const [editingId, setEditingId]         = useState<number | null>(null);
+  const [form, setForm]                   = useState<FormState>(defaultForm());
+  const [saving, setSaving]               = useState(false);
+  const [chartMode, setChartMode]         = useState<"kimp" | "diff">("kimp");
+  const [chartRange, setChartRange]       = useState<ChartRange>("all");
+  const [showOptions, setShowOptions]     = useState(false);
+  const [showContracts, setShowContracts] = useState(false);
+  const [equalInterval, setEqualInterval] = useState(false);
 
   // ── 데이터 로드 ──────────────────────────────────────────────
   const fetchTrades = useCallback(async () => {
@@ -93,14 +107,54 @@ export default function KimpPage() {
       ? calcKimp(t.sell_price_krw, Number(t.buy_price_usdt))
       : t.sell_price_krw - Number(t.buy_price_usdt);
 
-  const chartOpen   = trades.filter(t => t.status === "open")
-    .map(t => ({ x: new Date(t.traded_at).getTime(), y: getY(t), trade: t }));
-  const chartClosed = trades.filter(t => t.status === "closed")
-    .map(t => ({ x: new Date(t.traded_at).getTime(), y: getY(t), trade: t }));
+  const rangeStart  = getRangeStart(chartRange);
+  const sortedAll   = [...trades].sort(
+    (a, b) => new Date(a.traded_at).getTime() - new Date(b.traded_at).getTime()
+  );
+  const filteredAll = rangeStart > 0
+    ? sortedAll.filter(t => new Date(t.traded_at).getTime() >= rangeStart)
+    : sortedAll;
+
+  const allChartPoints = filteredAll.map((t, i) => ({
+    x: equalInterval ? i : new Date(t.traded_at).getTime(),
+    y: getY(t),
+    trade: t,
+  }));
+
+  const chartOpen   = allChartPoints.filter(p => p.trade.status === "open");
+  const chartClosed = allChartPoints.filter(p => p.trade.status === "closed");
+
+  const xDomain = equalInterval
+    ? ([0, Math.max(filteredAll.length - 1, 1)] as [number, number])
+    : (["dataMin - 3600000", "dataMax + 3600000"] as [string, string]);
 
   const yTickFmt = chartMode === "kimp"
     ? (v: number) => `${v.toFixed(1)}%`
     : (v: number) => `${Math.round(v)}`;
+
+  // ── 커스텀 점 렌더러 ─────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function makeShape(color: string): (props: any) => JSX.Element {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return function ChartDot(props: any) {
+      const { cx, cy, payload } = props;
+      const contracts: number = payload?.trade?.detail_json?.contracts ?? 0;
+      return (
+        <g>
+          <circle cx={cx} cy={cy} r={4} fill={color} />
+          {showContracts && contracts > 1 && (
+            <text
+              x={cx} y={cy}
+              textAnchor="middle" dominantBaseline="central"
+              fontSize={7} fontWeight="bold" fill="white"
+            >
+              {contracts}
+            </text>
+          )}
+        </g>
+      );
+    };
+  }
 
   // ── 시트 ────────────────────────────────────────────────────
   function openSheet(trade?: KimpTrade) {
@@ -182,24 +236,21 @@ export default function KimpPage() {
         {/* ── 순포지션 카드 ── */}
         <div className="bg-card border border-border rounded-xl px-4 py-3 text-center">
           <p className="text-[11px] text-muted-foreground mb-0.5">순포지션</p>
-          <p className={`text-2xl font-bold tabular-nums ${
+          <p className={`text-lg font-bold tabular-nums ${
             netPosition > 0 ? "text-red-500" : netPosition < 0 ? "text-blue-500" : "text-foreground"
           }`}>
             {netPosition > 0 ? "+" : ""}{netPosition.toLocaleString()}
-            <span className="text-base font-normal ml-1 text-muted-foreground">USDT</span>
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            진입 {openTotal.toLocaleString()} − 청산 {closedTotal.toLocaleString()}
+            <span className="text-sm font-normal ml-1 text-muted-foreground">USDT</span>
           </p>
         </div>
 
         {/* ── 차트 ── */}
         {trades.length > 0 && (
           <div className="bg-card border border-border rounded-xl p-3">
-            {/* 헤더: 제목 + 토글 */}
+            {/* 헤더: 제목 + 모드 토글 */}
             <div className="flex items-center justify-between mb-2">
               <p className="text-[11px] text-muted-foreground font-medium">
-                {chartMode === "kimp" ? "김프율 추이 (%)" : "스테이블−달러 차이값 (원)"}
+                {chartMode === "kimp" ? "김프매매 이력(%)" : "김프매매 이력(SKEW)"}
               </p>
               <div className="flex rounded-lg overflow-hidden border border-border">
                 {(["kimp", "diff"] as const).map(m => (
@@ -218,16 +269,42 @@ export default function KimpPage() {
               </div>
             </div>
 
+            {/* 기간 선택 버튼 */}
+            <div className="flex gap-1 mb-2">
+              {(["1d", "1w", "1m", "all"] as const).map(r => (
+                <button
+                  key={r}
+                  onClick={() => setChartRange(r)}
+                  className={`px-2 py-0.5 text-[10px] rounded-md font-medium transition-colors ${
+                    chartRange === r
+                      ? "bg-foreground text-background"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {r === "1d" ? "1일" : r === "1w" ? "1주" : r === "1m" ? "1달" : "전체"}
+                </button>
+              ))}
+            </div>
+
             <div style={{ height: 160 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
+                <ScatterChart margin={{ top: 4, right: 8, bottom: 0, left: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="x"
                     type="number"
-                    scale="time"
-                    domain={["dataMin - 3600000", "dataMax + 3600000"]}
-                    tickFormatter={(v) => { const d = new Date(v); return `${d.getMonth() + 1}/${d.getDate()}`; }}
+                    scale={equalInterval ? "linear" : "time"}
+                    domain={xDomain}
+                    tickFormatter={(v) => {
+                      if (equalInterval) {
+                        const t = filteredAll[Math.round(v)];
+                        if (!t) return "";
+                        const d = new Date(t.traded_at);
+                        return `${d.getMonth() + 1}/${d.getDate()}`;
+                      }
+                      const d = new Date(v);
+                      return `${d.getMonth() + 1}/${d.getDate()}`;
+                    }}
                     tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                     tickLine={false}
                   />
@@ -261,18 +338,56 @@ export default function KimpPage() {
                     }}
                   />
                   {chartOpen.length > 0 && (
-                    <Scatter data={chartOpen} fill="#EF4444" onClick={(d) => openSheet((d as unknown as { trade: KimpTrade }).trade)} />
+                    <Scatter
+                      data={chartOpen}
+                      shape={makeShape("#EF4444")}
+                      onClick={(d) => openSheet((d as unknown as { trade: KimpTrade }).trade)}
+                    />
                   )}
                   {chartClosed.length > 0 && (
-                    <Scatter data={chartClosed} fill="#3B82F6" onClick={(d) => openSheet((d as unknown as { trade: KimpTrade }).trade)} />
+                    <Scatter
+                      data={chartClosed}
+                      shape={makeShape("#3B82F6")}
+                      onClick={(d) => openSheet((d as unknown as { trade: KimpTrade }).trade)}
+                    />
                   )}
                 </ScatterChart>
               </ResponsiveContainer>
             </div>
-            <div className="flex gap-3 mt-1 justify-end">
-              <LegendDot color="#EF4444" label="진입" />
-              <LegendDot color="#3B82F6" label="청산" />
+
+            {/* 범례 + 설정 버튼 */}
+            <div className="flex items-center justify-between mt-1">
+              <div className="flex gap-3">
+                <LegendDot color="#EF4444" label="진입" />
+                <LegendDot color="#3B82F6" label="청산" />
+              </div>
+              <button
+                onClick={() => setShowOptions(v => !v)}
+                className={`p-1 rounded transition-colors ${
+                  showOptions ? "text-foreground bg-muted" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Settings size={14} />
+              </button>
             </div>
+
+            {/* 옵션 패널 */}
+            {showOptions && (
+              <div className="mt-2 border border-border rounded-xl px-3 py-2 flex flex-col gap-2 bg-muted/40">
+                <OptionToggle
+                  label="계약 수 표시"
+                  description="점 위에 계약 수 표시 (2계약 이상)"
+                  value={showContracts}
+                  onChange={setShowContracts}
+                />
+                <OptionToggle
+                  label="등간격 보기"
+                  description="X축을 거래 순서 기준으로 표시"
+                  value={equalInterval}
+                  onChange={setEqualInterval}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -349,6 +464,26 @@ function LegendDot({ color, label }: { color: string; label: string }) {
     <div className="flex items-center gap-1">
       <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
       <span className="text-[10px] text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+// ─── 옵션 토글 행 ───────────────────────────────────────────────
+function OptionToggle({
+  label, description, value, onChange,
+}: { label: string; description: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div className="min-w-0">
+        <p className="text-[11px] font-medium text-foreground">{label}</p>
+        <p className="text-[10px] text-muted-foreground">{description}</p>
+      </div>
+      <button
+        onClick={() => onChange(!value)}
+        className={`shrink-0 w-9 h-5 rounded-full transition-colors relative ${value ? "bg-foreground" : "bg-muted-foreground/30"}`}
+      >
+        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-background shadow transition-transform ${value ? "translate-x-4" : "translate-x-0.5"}`} />
+      </button>
     </div>
   );
 }
