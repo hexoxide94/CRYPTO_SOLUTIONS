@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
+  Tooltip, ResponsiveContainer, Customized,
 } from "recharts";
 import { Plus, Pencil, Trash2, X, Settings } from "lucide-react";
 
@@ -83,6 +83,7 @@ export default function KimpPage() {
   const [showOptions, setShowOptions]     = useState(false);
   const [showContracts, setShowContracts] = useState(false);
   const [equalInterval, setEqualInterval] = useState(false);
+  const [showTrend, setShowTrend]         = useState(false);
 
   // ── 데이터 로드 ──────────────────────────────────────────────
   const fetchTrades = useCallback(async () => {
@@ -139,9 +140,10 @@ export default function KimpPage() {
     return function ChartDot(props: any) {
       const { cx, cy, payload } = props;
       const contracts: number = payload?.trade?.detail_json?.contracts ?? 0;
+      const r = showContracts ? 12 : 5;
       return (
         <g>
-          <circle cx={cx} cy={cy} r={4} fill={color} />
+          <circle cx={cx} cy={cy} r={r} fill={color} />
           {showContracts && contracts > 1 && (
             <text
               x={cx} y={cy}
@@ -351,6 +353,29 @@ export default function KimpPage() {
                       onClick={(d) => openSheet((d as unknown as { trade: KimpTrade }).trade)}
                     />
                   )}
+                  {showTrend && allChartPoints.length > 1 && (
+                    <Customized
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      component={(chartProps: any) => {
+                        const xScale = Object.values(chartProps.xAxisMap ?? {})[0] as { scale?: (v: number) => number } | undefined;
+                        const yScale = Object.values(chartProps.yAxisMap ?? {})[0] as { scale?: (v: number) => number } | undefined;
+                        if (!xScale?.scale || !yScale?.scale) return null;
+                        const pts = allChartPoints
+                          .map(p => `${xScale.scale!(p.x)},${yScale.scale!(p.y)}`)
+                          .join(" ");
+                        return (
+                          <polyline
+                            points={pts}
+                            fill="none"
+                            stroke="hsl(var(--muted-foreground))"
+                            strokeOpacity={0.35}
+                            strokeWidth={1}
+                            strokeDasharray="4 6"
+                          />
+                        );
+                      }}
+                    />
+                  )}
                 </ScatterChart>
               </ResponsiveContainer>
             </div>
@@ -373,7 +398,7 @@ export default function KimpPage() {
 
             {/* 옵션 패널 */}
             {showOptions && (
-              <div className="mt-2 border border-border rounded-xl px-3 py-2 flex flex-col gap-2 bg-muted/40">
+              <div className="mt-2 border border-border rounded-xl px-3 py-2 flex flex-col gap-2 bg-muted/40 w-full overflow-hidden">
                 <OptionToggle
                   label="계약 수 표시"
                   description="점 위에 계약 수 표시 (2계약 이상)"
@@ -385,6 +410,12 @@ export default function KimpPage() {
                   description="X축을 거래 순서 기준으로 표시"
                   value={equalInterval}
                   onChange={setEqualInterval}
+                />
+                <OptionToggle
+                  label="추세선 표시"
+                  description="매매 점을 시간순으로 흐린 점선으로 연결"
+                  value={showTrend}
+                  onChange={setShowTrend}
                 />
               </div>
             )}
@@ -473,8 +504,8 @@ function OptionToggle({
   label, description, value, onChange,
 }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="flex items-center justify-between gap-2">
-      <div className="min-w-0">
+    <div className="flex items-center justify-between gap-3 w-full min-w-0">
+      <div className="flex-1 min-w-0">
         <p className="text-[11px] font-medium text-foreground">{label}</p>
         <p className="text-[10px] text-muted-foreground">{description}</p>
       </div>
