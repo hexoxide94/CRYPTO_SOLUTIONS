@@ -73,6 +73,44 @@ function getRangeStart(range: ChartRange | SummaryRange): number {
   return 0;
 }
 
+function computeXTicks(range: ChartRange, now: number): number[] | undefined {
+  if (range === "all") return undefined;
+  const rangeStart = getRangeStart(range);
+
+  if (range === "1w" || range === "1m") {
+    const intervalMs = range === "1w" ? 86_400_000 : 5 * 86_400_000;
+    const base = new Date(); base.setHours(0, 0, 0, 0);
+    let t = base.getTime();
+    while (t > rangeStart) t -= intervalMs;
+    t += intervalMs;
+    const ticks: number[] = [];
+    while (t <= now) { ticks.push(t); t += intervalMs; }
+    return ticks.length ? ticks : undefined;
+  }
+
+  const intervalMs = range === "1h" ? 10 * 60_000 : 4 * 3_600_000;
+  const t0 = Math.ceil(rangeStart / intervalMs) * intervalMs;
+  const ticks: number[] = [];
+  for (let t = t0; t <= now; t += intervalMs) ticks.push(t);
+  return ticks.length ? ticks : undefined;
+}
+
+function xTickFormatter(range: ChartRange, equalInterval: boolean, filteredAll: KimpTrade[]) {
+  return (v: number): string => {
+    if (equalInterval) {
+      const t = filteredAll[Math.round(v)];
+      if (!t) return "";
+      const d = new Date(t.traded_at);
+      return `${d.getMonth() + 1}/${d.getDate()}`;
+    }
+    const d = new Date(v);
+    if (range === "1h" || range === "1d") {
+      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  };
+}
+
 const CHART_RANGE_LABELS: Record<ChartRange, string> = {
   "1h": "1시간", "1d": "1일", "1w": "1주", "1m": "1달", "all": "전체",
 };
@@ -104,6 +142,7 @@ export default function KimpPage() {
   const [showContracts, setShowContracts] = useState(false);
   const [showLine, setShowLine]           = useState(false);
   const [summaryRange, setSummaryRange]   = useState<SummaryRange>("1d");
+  const [listExpanded, setListExpanded]   = useState(true);
 
   // ── 데이터 로드 ──────────────────────────────────────────────
   const fetchTrades = useCallback(async () => {
@@ -130,13 +169,13 @@ export default function KimpPage() {
   const sumOpen   = summaryTrades.filter(t => t.status === "open");
   const sumClosed = summaryTrades.filter(t => t.status === "closed");
 
-  function weightedAvgPrice(ts: KimpTrade[]): number {
+  function weightedAvgKimp(ts: KimpTrade[]): number | null {
     const totalAmt = ts.reduce((s, t) => s + Number(t.amount), 0);
-    if (!totalAmt) return 0;
-    return ts.reduce((s, t) => s + t.sell_price_krw * Number(t.amount), 0) / totalAmt;
+    if (!totalAmt) return null;
+    return ts.reduce((s, t) => s + calcKimp(t.sell_price_krw, Number(t.buy_price_usdt)) * Number(t.amount), 0) / totalAmt;
   }
-  const openAvg   = weightedAvgPrice(sumOpen);
-  const closedAvg = weightedAvgPrice(sumClosed);
+  const openAvgKimp   = weightedAvgKimp(sumOpen);
+  const closedAvgKimp = weightedAvgKimp(sumClosed);
 
   // ── 차트 데이터 ─────────────────────────────────────────────
   const getY = (t: KimpTrade) =>
@@ -317,16 +356,8 @@ export default function KimpPage() {
                     dataKey="x" type="number"
                     scale={equalInterval ? "linear" : "time"}
                     domain={xDomain}
-                    tickFormatter={(v) => {
-                      if (equalInterval) {
-                        const t = filteredAll[Math.round(v)];
-                        if (!t) return "";
-                        const d = new Date(t.traded_at);
-                        return `${d.getMonth() + 1}/${d.getDate()}`;
-                      }
-                      const d = new Date(v);
-                      return `${d.getMonth() + 1}/${d.getDate()}`;
-                    }}
+                    ticks={equalInterval ? undefined : computeXTicks(chartRange, Date.now())}
+                    tickFormatter={xTickFormatter(chartRange, equalInterval, filteredAll)}
                     tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                     tickLine={false}
                   />
@@ -429,40 +460,59 @@ export default function KimpPage() {
           <>
             {/* 요약 카드 */}
             <div className="bg-card border border-border rounded-xl p-3">
-              <div className="flex gap-1 mb-2">
-                {(["1d", "1w", "1m"] as const).map(r => (
-                  <button key={r} onClick={() => setSummaryRange(r)} className={tbBtn(summaryRange === r)}>
-                    {r === "1d" ? "최근 1일" : r === "1w" ? "최근 1주" : "최근 1달"}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex gap-1">
+                  {(["1d", "1w", "1m"] as const).map(r => (
+                    <button key={r} onClick={() => setSummaryRange(r)} className={tbBtn(summaryRange === r)}>
+                      {r === "1d" ? "최근 1일" : r === "1w" ? "최근 1주" : "최근 1달"}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setListExpanded(v => !v)}
+                  className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                  title={listExpanded ? "목록 접기" : "목록 펼치기"}
+                >
+                  {listExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <p className="text-[10px] text-muted-foreground mb-0.5">진입 평균가</p>
-                  <p className="text-sm font-bold tabular-nums text-red-500">
-                    {openAvg > 0 ? Math.round(openAvg).toLocaleString() : "-"}
+                  <p className="text-[10px] text-muted-foreground mb-0.5">진입 평균 김프</p>
+                  <p className={`text-sm font-bold tabular-nums ${
+                    openAvgKimp === null ? "text-muted-foreground"
+                    : openAvgKimp >= 0 ? "text-red-500" : "text-blue-500"
+                  }`}>
+                    {openAvgKimp === null ? "-"
+                      : `${openAvgKimp >= 0 ? "+" : ""}${openAvgKimp.toFixed(2)}%`}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground mb-0.5">청산 평균가</p>
-                  <p className="text-sm font-bold tabular-nums text-blue-500">
-                    {closedAvg > 0 ? Math.round(closedAvg).toLocaleString() : "-"}
+                  <p className="text-[10px] text-muted-foreground mb-0.5">청산 평균 김프</p>
+                  <p className={`text-sm font-bold tabular-nums ${
+                    closedAvgKimp === null ? "text-muted-foreground"
+                    : closedAvgKimp >= 0 ? "text-red-500" : "text-blue-500"
+                  }`}>
+                    {closedAvgKimp === null ? "-"
+                      : `${closedAvgKimp >= 0 ? "+" : ""}${closedAvgKimp.toFixed(2)}%`}
                   </p>
                 </div>
               </div>
             </div>
 
             {/* 이력 목록 */}
-            <div className="flex flex-col gap-1">
-              {trades.map((trade) => (
-                <TradeRow
-                  key={trade.id}
-                  trade={trade}
-                  onEdit={() => openSheet(trade)}
-                  onDelete={() => handleDelete(trade.id)}
-                />
-              ))}
-            </div>
+            {listExpanded && (
+              <div className="flex flex-col gap-1">
+                {trades.map((trade) => (
+                  <TradeRow
+                    key={trade.id}
+                    trade={trade}
+                    onEdit={() => openSheet(trade)}
+                    onDelete={() => handleDelete(trade.id)}
+                  />
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -509,34 +559,35 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 function TradeRow({ trade, onEdit, onDelete }: {
   trade: KimpTrade; onEdit: () => void; onDelete: () => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
   const isOpen = trade.status === "open";
   const kimp   = calcKimp(trade.sell_price_krw, Number(trade.buy_price_usdt));
   const sign   = kimp >= 0 ? "+" : "";
 
   return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden">
-      {/* 헤더 행 (항상 표시) */}
-      <div className="flex items-center gap-1.5 px-2 py-2">
-        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-          isOpen
-            ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-            : "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
-        }`}>
-          {isOpen ? "진입" : "청산"}
-        </span>
-        <span className="text-[10px] text-muted-foreground tabular-nums shrink-0 w-[58px]">
-          {fmtTime(trade.traded_at)}
-        </span>
-        <span className={`flex-1 text-[10px] font-semibold tabular-nums ${kimp >= 0 ? "text-red-500" : "text-blue-500"}`}>
+    <div className="flex items-center gap-1.5 bg-card border border-border rounded-lg px-2 py-2">
+      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+        isOpen
+          ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+          : "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+      }`}>
+        {isOpen ? "진입" : "청산"}
+      </span>
+      <span className="text-[10px] text-muted-foreground tabular-nums shrink-0 w-[58px]">
+        {fmtTime(trade.traded_at)}
+      </span>
+      <div className="flex-1 min-w-0 flex items-center gap-1 text-[10px] tabular-nums overflow-hidden">
+        <span className="text-foreground font-medium">{trade.sell_price_krw.toLocaleString()}</span>
+        <span className="text-border">|</span>
+        <span className="text-muted-foreground">{Number(trade.buy_price_usdt).toFixed(1)}</span>
+        <span className="text-border">|</span>
+        <span className={kimp >= 0 ? "text-red-500 font-medium" : "text-blue-500 font-medium"}>
           {sign}{kimp.toFixed(2)}%
         </span>
-        <button
-          onClick={() => setExpanded(v => !v)}
-          className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        </button>
+      </div>
+      <span className="text-[10px] font-semibold tabular-nums shrink-0 text-foreground">
+        {Number(trade.amount).toLocaleString()}
+      </span>
+      <div className="flex shrink-0">
         <button onClick={onEdit}
           className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
           <Pencil size={12} />
@@ -546,17 +597,6 @@ function TradeRow({ trade, onEdit, onDelete }: {
           <Trash2 size={12} />
         </button>
       </div>
-
-      {/* 상세 행 (펼쳐짐) */}
-      {expanded && (
-        <div className="flex items-center gap-1 px-2 pb-2 text-[10px] tabular-nums">
-          <span className="text-foreground font-medium">{trade.sell_price_krw.toLocaleString()}</span>
-          <span className="text-border">|</span>
-          <span className="text-muted-foreground">{Number(trade.buy_price_usdt).toFixed(1)}</span>
-          <span className="text-border">|</span>
-          <span className="text-foreground font-semibold">{Number(trade.amount).toLocaleString()}</span>
-        </div>
-      )}
     </div>
   );
 }
@@ -634,28 +674,24 @@ function SheetForm({
           ))}
         </div>
 
-        {/* 국선 / 해선 */}
-        <div className="flex gap-2">
+        {/* 국선/해선 + 거래 시간 (한 줄) */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {(["domestic", "overseas"] as const).map(ft => (
-            <button key={ft} onClick={() => patch({ futures_type: ft, amount: "", contracts: "" })}
-              className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${
-                form.futures_type === ft
-                  ? "bg-foreground text-background"
-                  : "bg-muted text-muted-foreground"
+            <button key={ft}
+              onClick={() => patch({ futures_type: ft, amount: "", contracts: "" })}
+              style={{ width: 70, flexShrink: 0 }}
+              className={`py-2 rounded-xl text-sm font-bold transition-colors ${
+                form.futures_type === ft ? "bg-foreground text-background" : "bg-muted text-muted-foreground"
               }`}>
               {ft === "domestic" ? "국선" : "해선"}
             </button>
           ))}
-        </div>
-
-        {/* 거래 시간 */}
-        <div>
-          <FLabel>거래 시간</FLabel>
           <input
             type="datetime-local"
             value={form.traded_at}
             onChange={e => patch({ traded_at: e.target.value })}
-            className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground outline-none border border-transparent focus:border-ring"
+            style={{ flex: 1, minWidth: 0 }}
+            className="bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground outline-none border border-transparent focus:border-ring"
           />
         </div>
 
