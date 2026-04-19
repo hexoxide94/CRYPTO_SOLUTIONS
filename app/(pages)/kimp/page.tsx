@@ -266,10 +266,10 @@ export default function KimpPage() {
     const stable    = toNum(form.stable_price);
     const dollar    = toNum(form.dollar_price);
     const kimp      = calcKimp(stable, dollar);
+    const contracts = toNum(form.contracts);
     const amount    = form.futures_type === "overseas" && contracts > 0 && dollar > 0
       ? Math.round(contracts * KRW_PER_OVERSEAS_CONTRACT / dollar)
       : toNum(form.amount);
-    const contracts = toNum(form.contracts);
     const tradedAt  = form.traded_at
       ? new Date(form.traded_at).toISOString()
       : new Date().toISOString();
