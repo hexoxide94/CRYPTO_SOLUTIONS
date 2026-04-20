@@ -706,10 +706,10 @@ function SheetForm({
 }) {
   const patch = (p: Partial<FormState>) => setForm(f => ({ ...f, ...p }));
 
-  const stable      = toNum(form.stable_price);
-  const dollar      = toNum(form.dollar_price);
-  const feeStable   = parseFloat(form.fee_stable) || 0;
-  const feeDollar   = parseFloat(form.fee_dollar) || 0;
+  const stable    = toNum(form.stable_price);
+  const dollar    = toNum(form.dollar_price);
+  const feeStable = parseFloat(form.fee_stable) || 0;
+  const feeDollar = parseFloat(form.fee_dollar) || 0;
 
   const { stableAdj, dollarAdj } = applyFee(stable, dollar, feeStable, feeDollar, form.trade_type);
   const kimpVal     = calcKimp(stableAdj, dollarAdj);
@@ -763,11 +763,16 @@ function SheetForm({
     }
   }
 
+  const contractLabel = form.futures_type === "domestic" ? "계약(1만$)" : "계약(2500만원)";
+
   return (
     <div className="flex flex-col">
+      {/* 드래그 핸들 */}
       <div className="flex justify-center pt-3 pb-1">
         <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
       </div>
+
+      {/* 헤더 */}
       <div className="flex items-center justify-between px-4 py-1.5 border-b border-border">
         <h2 className="text-base font-bold text-foreground">
           {editingId ? "매매 수정" : "매매 기록"}
@@ -780,7 +785,7 @@ function SheetForm({
 
       <div className="px-4 pt-2 pb-3 flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: "68vh" }}>
 
-        {/* 진입 / 청산 */}
+        {/* 1. 진입 / 청산 */}
         <div className="flex gap-2">
           {(["open", "closed"] as const).map(t => (
             <button key={t} onClick={() => patch({ trade_type: t })}
@@ -794,18 +799,21 @@ function SheetForm({
           ))}
         </div>
 
-        {/* 국선/해선 pill switch + 거래 시간 */}
+        {/* 2. 국선/해선 pill + 날짜 */}
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {/* pill switch */}
+          {/* pill switch — 어두운 배경, 선택쪽 약간 밝은 배경 */}
           <div
             style={{
               position: "relative",
-              width: 126,
-              height: 30,
+              width: 80,
+              height: 28,
               flexShrink: 0,
-              borderRadius: 999,
+              borderRadius: 20,
+              padding: 2,
+              boxSizing: "border-box",
+              background: "hsl(var(--background))",
+              border: "1px solid hsl(var(--border))",
             }}
-            className="bg-muted"
           >
             <div
               style={{
@@ -815,9 +823,9 @@ function SheetForm({
                 left: form.futures_type === "domestic" ? 2 : "calc(50% + 1px)",
                 width: "calc(50% - 3px)",
                 transition: "left 0.2s ease",
-                borderRadius: 999,
+                borderRadius: 16,
+                background: "hsl(var(--muted))",
               }}
-              className="bg-foreground"
             />
             {(["domestic", "overseas"] as const).map(ft => (
               <button
@@ -830,12 +838,12 @@ function SheetForm({
                   left: ft === "domestic" ? 0 : "50%",
                   width: "50%",
                   zIndex: 1,
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: "bold",
-                  borderRadius: 999,
+                  borderRadius: 16,
                 }}
                 className={`transition-colors ${
-                  form.futures_type === ft ? "text-background" : "text-muted-foreground"
+                  form.futures_type === ft ? "text-foreground" : "text-muted-foreground"
                 }`}
               >
                 {ft === "domestic" ? "국선" : "해선"}
@@ -846,44 +854,42 @@ function SheetForm({
             type="datetime-local"
             value={form.traded_at}
             onChange={e => patch({ traded_at: e.target.value })}
-            style={{ flex: 1, minWidth: 0 }}
-            className="bg-muted rounded-xl px-3 py-1.5 text-sm text-foreground outline-none border border-transparent focus:border-ring"
+            style={{ flex: 1, minWidth: 0, padding: "5px 10px" }}
+            className="bg-muted rounded-xl text-sm text-foreground outline-none border border-transparent focus:border-ring"
           />
         </div>
 
-        {/* 스테이블 코인 / 원달러 환율 */}
-        <div className="grid grid-cols-2 gap-2">
+        {/* 3. 구분선 */}
+        <div className="border-t border-border" />
+
+        {/* 4-7. 3컬럼 그리드 */}
+        <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr", gap: "6px 8px", alignItems: "center" }}>
+
+          {/* 4. 컬럼 헤더 */}
+          <div />
+          <p style={{ fontSize: 10, color: "hsl(var(--muted-foreground))", textAlign: "center" }}>스테이블 코인</p>
+          <p style={{ fontSize: 10, color: "hsl(var(--muted-foreground))", textAlign: "center" }}>원달러 환율</p>
+
+          {/* 5. 가격(원) 행 */}
+          <p style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", fontWeight: 500 }}>가격(원)</p>
+          <GInput value={form.stable_price} onChange={v => patch({ stable_price: v })} inputMode="decimal" step="0.1" />
+          <GInput value={form.dollar_price} onChange={handleDollarPriceChange} inputMode="decimal" />
+
+          {/* 6. 수수료율(%) 행 */}
+          <p style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", fontWeight: 500 }}>수수료율(%)</p>
+          <GInput value={form.fee_stable} onChange={v => patch({ fee_stable: v })} inputMode="decimal" />
+          <GInput value={form.fee_dollar} onChange={v => patch({ fee_dollar: v })} inputMode="decimal" />
+
+          {/* 7. 금액 행 */}
           <div>
-            <FLabel>스테이블 코인</FLabel>
-            <FInput
-              value={form.stable_price}
-              onChange={v => patch({ stable_price: v })}
-              inputMode="decimal"
-              step="0.1"
-            />
+            <p style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", fontWeight: 500 }}>수량(USDT)</p>
+            <p style={{ fontSize: 9, color: "hsl(var(--muted-foreground))" }}>{contractLabel}</p>
           </div>
-          <div>
-            <FLabel>원달러 환율</FLabel>
-            <FInput value={form.dollar_price} onChange={handleDollarPriceChange} inputMode="decimal" />
-          </div>
+          <GInput value={form.amount} onChange={handleAmountChange} inputMode="numeric" />
+          <GInput value={form.contracts} onChange={handleContractsChange} inputMode="numeric" />
         </div>
 
-        {/* 수수료율 */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", flexShrink: 0, width: 72 }}>
-            수수료율 (%)
-          </span>
-          <div style={{ flex: 1 }}>
-            <FLabel>스테이블</FLabel>
-            <FInput value={form.fee_stable} onChange={v => patch({ fee_stable: v })} inputMode="decimal" />
-          </div>
-          <div style={{ flex: 1 }}>
-            <FLabel>달러선물</FLabel>
-            <FInput value={form.fee_dollar} onChange={v => patch({ fee_dollar: v })} inputMode="decimal" />
-          </div>
-        </div>
-
-        {/* 김프 실시간 (보정 후) */}
+        {/* 김프 실시간 (보정 후) — 값이 있을 때만 */}
         {stable > 0 && dollar > 0 && (
           <div className="bg-muted rounded-xl px-3 py-1.5 flex items-center justify-between">
             <span className="text-xs text-muted-foreground">김프 (수수료 보정)</span>
@@ -895,32 +901,11 @@ function SheetForm({
           </div>
         )}
 
-        {/* 수량 / 계약 수 */}
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <FLabel>수량 (USDT)</FLabel>
-            <FInput value={form.amount} onChange={handleAmountChange} inputMode="numeric" />
-          </div>
-          <div>
-            <FLabel>
-              {form.futures_type === "domestic"
-                ? "계약 수 (1계약=10,000$)"
-                : "계약 수 (1계약=2,500만원)"}
-            </FLabel>
-            <FInput value={form.contracts} onChange={handleContractsChange} inputMode="numeric" />
-          </div>
-        </div>
+        {/* 8. 구분선 */}
+        <div className="border-t border-border" />
 
-        {/* 해선 계약가치 안내 */}
-        {form.futures_type === "overseas" && dollar > 0 && toNum(form.contracts) > 0 && (
-          <p className="text-[10px] text-muted-foreground">
-            1계약 ≈ {Math.round(KRW_PER_OVERSEAS_CONTRACT / dollar).toLocaleString()}달러
-            · {toNum(form.contracts)}계약 ≈ {toNum(form.amount).toLocaleString()}달러
-          </p>
-        )}
-
-        {/* 저장 버튼 */}
-        <div className="flex gap-2 pt-0.5">
+        {/* 9. 취소 / 등록 완료 */}
+        <div className="flex gap-2">
           <button onClick={onClose}
             className="flex-1 py-2 rounded-xl border border-border text-sm font-medium text-foreground active:opacity-70">
             취소
@@ -935,11 +920,7 @@ function SheetForm({
   );
 }
 
-function FLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-[10px] font-medium text-muted-foreground mb-0.5">{children}</p>;
-}
-
-function FInput({ value, onChange, inputMode, step }: {
+function GInput({ value, onChange, inputMode, step }: {
   value: string;
   onChange: (v: string) => void;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
@@ -951,7 +932,8 @@ function FInput({ value, onChange, inputMode, step }: {
       step={step}
       value={value}
       onChange={e => onChange(e.target.value)}
-      className="w-full bg-muted rounded-xl px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground outline-none border border-transparent focus:border-ring tabular-nums"
+      style={{ padding: "5px 8px" }}
+      className="w-full bg-muted rounded-lg text-sm text-foreground placeholder:text-muted-foreground outline-none border border-transparent focus:border-ring tabular-nums"
     />
   );
 }
