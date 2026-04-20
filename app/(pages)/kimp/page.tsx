@@ -344,6 +344,20 @@ export default function KimpPage() {
     <div className="flex flex-col min-h-full">
       <div className="flex-1 px-2 py-2 flex flex-col gap-2 pb-24">
 
+<<<<<<< HEAD
+=======
+        {/* ── 순포지션 카드 ── */}
+        <div className="bg-card border border-border rounded-xl px-4 py-3 text-center">
+          <p className="text-[11px] text-muted-foreground mb-0.5">순포지션</p>
+          <p className={`text-lg font-bold tabular-nums ${
+            netPosition > 0 ? "text-red-500" : netPosition < 0 ? "text-blue-500" : "text-foreground"
+          }`}>
+            {netPosition > 0 ? "+" : ""}{netPosition.toLocaleString()}
+            <span className="text-sm font-normal ml-1 text-muted-foreground">USDT</span>
+          </p>
+        </div>
+
+>>>>>>> 90ecb008db7cca3e4fd70a86fe097eb85c265ff1
         {/* ── 차트 ── */}
         {trades.length > 0 && (
           <div className="bg-card border border-border rounded-xl p-3 relative">
@@ -493,7 +507,11 @@ export default function KimpPage() {
                   {listExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
               </div>
+<<<<<<< HEAD
               <div className="grid grid-cols-3 gap-2">
+=======
+              <div className="grid grid-cols-2 gap-2">
+>>>>>>> 90ecb008db7cca3e4fd70a86fe097eb85c265ff1
                 <div>
                   <p className="text-[10px] text-muted-foreground mb-0.5">진입 평균 김프</p>
                   <p className={`text-sm font-bold tabular-nums ${
@@ -514,6 +532,7 @@ export default function KimpPage() {
                       : `${closedAvgKimp >= 0 ? "+" : ""}${closedAvgKimp.toFixed(2)}%`}
                   </p>
                 </div>
+<<<<<<< HEAD
                 <div>
                   <p className="text-[10px] text-muted-foreground mb-0.5">순포지션</p>
                   <p className={`text-sm font-bold tabular-nums ${
@@ -528,6 +547,8 @@ export default function KimpPage() {
                     </p>
                   )}
                 </div>
+=======
+>>>>>>> 90ecb008db7cca3e4fd70a86fe097eb85c265ff1
               </div>
             </div>
 
@@ -613,7 +634,11 @@ function TradeRow({ trade, onEdit, onDelete }: {
         <span className="text-muted-foreground">{Number(trade.buy_price_usdt).toFixed(1)}</span>
         <span className="text-border">|</span>
         <span className={kimp >= 0 ? "text-red-500 font-medium" : "text-blue-500 font-medium"}>
+<<<<<<< HEAD
           {sign}{kimp.toFixed(2)}% ({diff >= 0 ? "+" : ""}{diff.toFixed(1)}원)
+=======
+          {sign}{kimp.toFixed(2)}%
+>>>>>>> 90ecb008db7cca3e4fd70a86fe097eb85c265ff1
         </span>
       </div>
       <span className="text-[10px] font-semibold tabular-nums shrink-0 text-foreground">
