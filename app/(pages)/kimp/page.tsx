@@ -192,6 +192,9 @@ export default function KimpPage() {
   const [showOptions, setShowOptions]     = useState(false);
   const [showContracts, setShowContracts] = useState(false);
   const [showKimpLabel, setShowKimpLabel] = useState(false);
+  const [yAxisManual, setYAxisManual]     = useState(false);
+  const [yMin, setYMin]                   = useState("");
+  const [yMax, setYMax]                   = useState("");
   const [summaryRange, setSummaryRange]   = useState<SummaryRange>("1d");
   const [listExpanded, setListExpanded]   = useState(true);
   const { usdt: usdtPrices }             = useUsdtPrices();
@@ -402,7 +405,7 @@ export default function KimpPage() {
   // ── 렌더 ────────────────────────────────────────────────────
   return (
     <div className="flex flex-col min-h-full">
-      <div className="flex-1 px-2 py-2 flex flex-col gap-2 pb-24">
+      <div className="flex-1 px-2 py-2 flex flex-col gap-2 pb-20">
 
         {/* ── 차트 ── */}
         {trades.length > 0 && (
@@ -439,7 +442,12 @@ export default function KimpPage() {
                     tickLine={false}
                   />
                   <YAxis
-                    dataKey="y" type="number" domain={["auto", "auto"]}
+                    dataKey="y" type="number"
+                    domain={
+                      yAxisManual && yMin !== "" && yMax !== ""
+                        ? [parseFloat(yMin), parseFloat(yMax)]
+                        : (["auto", "auto"] as [string, string])
+                    }
                     tickFormatter={yTickFmt}
                     tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                     tickLine={false} axisLine={false} width={40}
@@ -493,18 +501,37 @@ export default function KimpPage() {
             {showOptions && (
               <div
                 className="absolute bottom-9 right-3 z-10 border border-border rounded-xl bg-card shadow-lg"
-                style={{ width: 160, padding: 12, boxSizing: "border-box", overflow: "hidden" }}
+                style={{ width: 180, padding: 12, boxSizing: "border-box" }}
               >
                 <label style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", cursor: "pointer", marginBottom: 8 }}>
                   <input type="checkbox" checked={showContracts} onChange={e => setShowContracts(e.target.checked)}
                     style={{ flexShrink: 0, width: 16, height: 16 }} />
                   <span style={{ fontSize: 12 }}>계약 수 표시</span>
                 </label>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", cursor: "pointer" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", cursor: "pointer", marginBottom: 8 }}>
                   <input type="checkbox" checked={showKimpLabel} onChange={e => setShowKimpLabel(e.target.checked)}
                     style={{ flexShrink: 0, width: 16, height: 16 }} />
                   <span style={{ fontSize: 12 }}>김프값 표기</span>
                 </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", cursor: "pointer" }}>
+                  <input type="checkbox" checked={yAxisManual} onChange={e => setYAxisManual(e.target.checked)}
+                    style={{ flexShrink: 0, width: 16, height: 16 }} />
+                  <span style={{ fontSize: 12 }}>Y축 수동 설정</span>
+                </label>
+                {yAxisManual && (
+                  <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+                    <input
+                      type="number" step="0.01" placeholder="최소" value={yMin}
+                      onChange={e => setYMin(e.target.value)}
+                      style={{ width: "100%", padding: "3px 6px", fontSize: 11, background: "hsl(var(--muted))", border: "1px solid hsl(var(--border))", borderRadius: 6, color: "hsl(var(--foreground))", outline: "none" }}
+                    />
+                    <input
+                      type="number" step="0.01" placeholder="최대" value={yMax}
+                      onChange={e => setYMax(e.target.value)}
+                      style={{ width: "100%", padding: "3px 6px", fontSize: 11, background: "hsl(var(--muted))", border: "1px solid hsl(var(--border))", borderRadius: 6, color: "hsl(var(--foreground))", outline: "none" }}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -594,13 +621,14 @@ export default function KimpPage() {
 
             {/* 이력 목록 */}
             {listExpanded && (
-              <div className="flex flex-col gap-1">
-                {trades.map((trade) => (
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                {trades.map((trade, idx) => (
                   <TradeRow
                     key={trade.id}
                     trade={trade}
                     onEdit={() => openSheet(trade)}
                     onDelete={() => handleDelete(trade.id)}
+                    isLast={idx === trades.length - 1}
                   />
                 ))}
               </div>
@@ -609,16 +637,22 @@ export default function KimpPage() {
         )}
       </div>
 
-      {/* 하단 버튼 */}
-      <div
-        className="fixed left-0 right-0 max-w-[390px] mx-auto px-2 py-2 bg-background/95 backdrop-blur border-t border-border"
-        style={{ bottom: "calc(var(--bottomnav-h, 60px) + env(safe-area-inset-bottom))" }}
+      {/* 플로팅 버튼 */}
+      <button
+        onClick={() => openSheet()}
+        className="fixed z-50 bg-foreground text-background active:opacity-80 transition-opacity flex items-center justify-center shadow-lg"
+        style={{
+          right: 16,
+          bottom: "calc(var(--bottomnav-h, 60px) + env(safe-area-inset-bottom) + 16px)",
+          width: 48,
+          height: 48,
+          borderRadius: "50%",
+          fontSize: 28,
+          lineHeight: 1,
+        }}
       >
-        <button onClick={() => openSheet()}
-          className="w-full py-3 rounded-xl bg-foreground text-background font-semibold text-sm flex items-center justify-center gap-1.5 active:opacity-80 transition-opacity">
-          <Plus size={15} />매매 기록
-        </button>
-      </div>
+        +
+      </button>
 
       {sheetOpen && <div className="fixed inset-0 z-[60] bg-black/50" onClick={closeSheet} />}
 
@@ -648,8 +682,8 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 }
 
 // ─── 이력 행 ────────────────────────────────────────────────────
-function TradeRow({ trade, onEdit, onDelete }: {
-  trade: KimpTrade; onEdit: () => void; onDelete: () => void;
+function TradeRow({ trade, onEdit, onDelete, isLast }: {
+  trade: KimpTrade; onEdit: () => void; onDelete: () => void; isLast?: boolean;
 }) {
   const isOpen = trade.status === "open";
   const kimp   = calcKimp(trade.sell_price_krw, Number(trade.buy_price_usdt));
@@ -657,7 +691,10 @@ function TradeRow({ trade, onEdit, onDelete }: {
   const sign   = kimp >= 0 ? "+" : "";
 
   return (
-    <div className="flex items-center gap-1.5 bg-card border border-border rounded-lg px-2 py-2">
+    <div
+      className="flex items-center gap-1.5 px-2 py-1.5"
+      style={!isLast ? { borderBottom: "0.5px solid rgba(255,255,255,0.08)" } : undefined}
+    >
       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
         isOpen
           ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
