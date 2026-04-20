@@ -1,5 +1,6 @@
 import TopBar from "@/components/TopBar";
 import BottomNav from "@/components/BottomNav";
+import { UsdtProvider } from "@/lib/usdt-context";
 
 export default function PagesLayout({
   children,
@@ -7,6 +8,7 @@ export default function PagesLayout({
   children: React.ReactNode;
 }) {
   return (
+    <UsdtProvider>
     <div className="relative min-h-screen max-w-[390px] mx-auto">
       <TopBar />
       <main
@@ -20,5 +22,6 @@ export default function PagesLayout({
       </main>
       <BottomNav />
     </div>
+    </UsdtProvider>
   );
 }

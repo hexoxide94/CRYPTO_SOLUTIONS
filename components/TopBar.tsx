@@ -3,6 +3,7 @@
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useUsdtPrices } from "@/lib/usdt-context";
 
 // ─── 타입 ────────────────────────────────────────────────────────
 interface UsdtPrices {
@@ -20,24 +21,29 @@ const FX_POLL_INTERVAL_MS = 30_000;
 export default function TopBar() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted]     = useState(false);
-  const [usdt, setUsdt]           = useState<UsdtPrices | null>(null);
+  const { usdt, setUsdt }         = useUsdtPrices();
   const [usdKrw, setUsdKrw]       = useState<number | null>(null);
+  const [usdStatus, setUsdStatus] = useState<"loading" | "ok" | "error">("loading");
 
   const wsRef      = useRef<WebSocket | null>(null);
   const pingRef    = useRef<ReturnType<typeof setInterval> | null>(null);
   const retryRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeRef  = useRef(true); // 언마운트 시 재연결 방지
 
-  // ── USD/KRW 환율 (open.er-api.com은 CORS 허용) ─────────────────
+  // ── USD/KRW 환율 (한국투자증권 API, 서버사이드 프록시) ─────────────
   const fetchFx = useCallback(async () => {
     try {
-      const res = await fetch("https://open.er-api.com/v6/latest/USD");
+      const res = await fetch("/api/usd-rate");
+      if (!res.ok) { setUsdStatus("error"); return; }
       const data = await res.json();
-      const krw = data?.rates?.KRW;
-      console.log("[TopBar] FX 응답:", krw ?? "없음");
-      if (krw) setUsdKrw(krw);
-    } catch (e) {
-      console.error("[TopBar] FX 호출 실패:", e);
+      if (typeof data?.rate === "number") {
+        setUsdKrw(data.rate);
+        setUsdStatus("ok");
+      } else {
+        setUsdStatus("error");
+      }
+    } catch {
+      setUsdStatus("error");
     }
   }, []);
 
@@ -182,9 +188,11 @@ export default function TopBar() {
         <div className="flex items-baseline gap-0.5 shrink-0">
           <span className="text-[10px] text-muted-foreground font-medium leading-none">USD</span>
           <span className="text-[11px] font-bold leading-none tabular-nums text-foreground">
-            {usdKrw
-              ? usdKrw.toLocaleString("ko-KR", { maximumFractionDigits: 1 })
-              : "—"}
+            {usdStatus === "loading"
+              ? "---"
+              : usdStatus === "error"
+              ? "N/A"
+              : usdKrw!.toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
 
