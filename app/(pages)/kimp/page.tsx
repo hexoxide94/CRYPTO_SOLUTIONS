@@ -267,7 +267,7 @@ export default function KimpPage() {
             </text>
           )}
           {showKimpLabel && trade && (
-            <text x={cx} y={cy + 14} textAnchor="middle" fontSize={9} fill="#F5D060">
+            <text x={cx} y={cy + 14} textAnchor="middle" fontSize={9} fill="#FFFFFF">
               {kimpLabel}
             </text>
           )}
@@ -506,12 +506,12 @@ export default function KimpPage() {
                 <div>
                   <p className="text-[10px] text-muted-foreground mb-0.5">진입 평균 김프</p>
                   <p className="text-sm font-bold tabular-nums"
-                    style={{ color: openAvgKimp === null ? "hsl(var(--muted-foreground))" : "#F5D060" }}>
+                    style={{ color: openAvgKimp === null ? "hsl(var(--muted-foreground))" : "#FFFFFF" }}>
                     {openAvgKimp === null ? "-"
                       : `${openAvgKimp >= 0 ? "+" : ""}${openAvgKimp.toFixed(2)}%`}
                   </p>
                   {openAvgKimp !== null && usdtPrices && (
-                    <p className="text-[9px] tabular-nums" style={{ color: "#F5D060", opacity: 0.65 }}>
+                    <p className="text-[9px] tabular-nums" style={{ color: "#9CA3AF" }}>
                       {(() => {
                         const mid = (usdtPrices.bestAsk + usdtPrices.bestBid) / 2;
                         const v = mid * (openAvgKimp / 100);
@@ -523,12 +523,12 @@ export default function KimpPage() {
                 <div>
                   <p className="text-[10px] text-muted-foreground mb-0.5">청산 평균 김프</p>
                   <p className="text-sm font-bold tabular-nums"
-                    style={{ color: closedAvgKimp === null ? "hsl(var(--muted-foreground))" : "#F5D060" }}>
+                    style={{ color: closedAvgKimp === null ? "hsl(var(--muted-foreground))" : "#FFFFFF" }}>
                     {closedAvgKimp === null ? "-"
                       : `${closedAvgKimp >= 0 ? "+" : ""}${closedAvgKimp.toFixed(2)}%`}
                   </p>
                   {closedAvgKimp !== null && usdtPrices && (
-                    <p className="text-[9px] tabular-nums" style={{ color: "#F5D060", opacity: 0.65 }}>
+                    <p className="text-[9px] tabular-nums" style={{ color: "#9CA3AF" }}>
                       {(() => {
                         const mid = (usdtPrices.bestAsk + usdtPrices.bestBid) / 2;
                         const v = mid * (closedAvgKimp / 100);
@@ -542,10 +542,10 @@ export default function KimpPage() {
                   <p className="text-sm font-bold tabular-nums"
                     style={{ color: netPosition === 0 ? "hsl(var(--foreground))" : "#A8E063" }}>
                     {netPosition > 0 ? "+" : ""}{netPosition.toLocaleString()}
-                    <span className="text-[9px] font-normal ml-0.5" style={{ color: "#A8E063", opacity: 0.75 }}>USDT</span>
+                    <span className="text-[9px] font-normal ml-0.5" style={{ color: "#9CA3AF" }}>USDT</span>
                   </p>
                   {usdtPrices && (
-                    <p className="text-[9px] tabular-nums" style={{ color: "#A8E063", opacity: 0.75 }}>
+                    <p className="text-[9px] tabular-nums" style={{ color: "#9CA3AF" }}>
                       ≈ {Math.round(netPosition * (usdtPrices.bestAsk + usdtPrices.bestBid) / 2).toLocaleString()}원
                     </p>
                   )}
@@ -634,8 +634,11 @@ function TradeRow({ trade, onEdit, onDelete }: {
         <span className="text-border">|</span>
         <span className="text-muted-foreground">{Number(trade.buy_price_usdt).toFixed(1)}</span>
         <span className="text-border">|</span>
-        <span className="font-medium" style={{ color: "#F5D060" }}>
-          {sign}{kimp.toFixed(2)}% ({diff >= 0 ? "+" : ""}{diff.toFixed(1)}원)
+        <span className="font-medium" style={{ color: "#FFFFFF" }}>
+          {sign}{kimp.toFixed(2)}%
+        </span>
+        <span style={{ color: "#9CA3AF" }}>
+          {" "}({diff >= 0 ? "+" : ""}{diff.toFixed(1)}원)
         </span>
       </div>
       <span className="text-[10px] font-semibold tabular-nums shrink-0 text-foreground">
