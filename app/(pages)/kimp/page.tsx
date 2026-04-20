@@ -22,8 +22,6 @@ interface KimpTrade {
   buy_price_usdt: number;
   kimp_rate: number;
   amount: number;
-  stable_price_raw?: number | null;
-  dollar_price_raw?: number | null;
   detail_json: {
     contracts: number;
     futures_type?: "domestic" | "overseas";
@@ -200,7 +198,7 @@ export default function KimpPage() {
   const fetchTrades = useCallback(async () => {
     const { data, error } = await supabase
       .from("kimp_trades")
-      .select("id, traded_at, status, sell_price_krw, buy_price_usdt, kimp_rate, amount, detail_json, stable_price_raw, dollar_price_raw")
+      .select("id, traded_at, status, sell_price_krw, buy_price_usdt, kimp_rate, amount, detail_json")
       .order("traded_at", { ascending: false });
     if (!error && data) setTrades(data as KimpTrade[]);
     setLoading(false);
@@ -314,8 +312,8 @@ export default function KimpPage() {
       setForm({
         trade_type:   trade.status,
         futures_type: ft,
-        stable_price: Number(trade.stable_price_raw ?? trade.sell_price_krw).toFixed(1),
-        dollar_price: String(Number(trade.dollar_price_raw ?? trade.buy_price_usdt)),
+        stable_price: Number(trade.sell_price_krw).toFixed(1),
+        dollar_price: String(Number(trade.buy_price_usdt)),
         fee_stable:   String(trade.detail_json?.fee_stable ?? 0),
         fee_dollar:   String(trade.detail_json?.fee_dollar ?? (ft === "domestic" ? 0.003 : 0.01)),
         amount:       String(Number(trade.amount)),
@@ -355,16 +353,14 @@ export default function KimpPage() {
 
     setSaving(true);
     const payload = {
-      status:           form.trade_type,
-      coin:             "USDT",
+      status:         form.trade_type,
+      coin:           "USDT",
       amount,
-      buy_exchange:     "-",
-      sell_exchange:    "-",
-      sell_price_krw:   parseFloat(stableAdj.toFixed(1)),
-      buy_price_usdt:   parseFloat(dollarAdj.toFixed(4)),
-      usdt_rate:        parseFloat(stableAdj.toFixed(1)),
-      stable_price_raw: parseFloat(stable.toFixed(1)),
-      dollar_price_raw: parseFloat(dollar.toFixed(4)),
+      buy_exchange:   "-",
+      sell_exchange:  "-",
+      sell_price_krw: parseFloat(stableAdj.toFixed(1)),
+      buy_price_usdt: parseFloat(dollarAdj.toFixed(4)),
+      usdt_rate:      parseFloat(stableAdj.toFixed(1)),
       kimp_rate:      parseFloat(kimp.toFixed(4)),
       profit_krw:     0,
       fee_krw:        0,
