@@ -5,12 +5,6 @@ import { Sun, Moon } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useUsdtPrices } from "@/lib/usdt-context";
 
-// ─── 타입 ────────────────────────────────────────────────────────
-interface UsdtPrices {
-  bestAsk: number;
-  bestBid: number;
-}
-
 // ─── 상수 ────────────────────────────────────────────────────────
 const COINONE_WS_URL = "wss://stream.coinone.co.kr";
 const PING_INTERVAL_MS = 25 * 60 * 1000; // 25분
@@ -119,7 +113,7 @@ export default function TopBar() {
         connectWs();
       }, RECONNECT_DELAY_MS);
     };
-  }, []); // wsRef/pingRef/retryRef/activeRef는 ref이므로 의존성 불필요
+  }, [setUsdt]); // wsRef/pingRef/retryRef/activeRef는 ref이므로 의존성 불필요
 
   useEffect(() => {
     activeRef.current = true;
