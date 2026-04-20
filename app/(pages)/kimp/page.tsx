@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useUsdtPrices } from "@/lib/usdt-context";
 import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Customized,
+  Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Plus, Pencil, Trash2, X, Settings, ChevronDown, ChevronUp } from "lucide-react";
 
@@ -165,7 +165,7 @@ export default function KimpPage() {
   const [equalInterval, setEqualInterval] = useState(false);
   const [showOptions, setShowOptions]     = useState(false);
   const [showContracts, setShowContracts] = useState(false);
-  const [showLine, setShowLine]           = useState(false);
+  const [showKimpLabel, setShowKimpLabel] = useState(false);
   const [summaryRange, setSummaryRange]   = useState<SummaryRange>("1d");
   const [listExpanded, setListExpanded]   = useState(true);
   const { usdt: usdtPrices }             = useUsdtPrices();
@@ -240,14 +240,35 @@ export default function KimpPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return function ChartDot(props: any) {
       const { cx, cy, payload } = props;
-      const contracts: number = payload?.trade?.detail_json?.contracts ?? 0;
+      const trade = payload?.trade as KimpTrade | undefined;
+      const rawContracts: number = trade?.detail_json?.contracts ?? 0;
+      const futuresType = trade?.detail_json?.futures_type ?? "domestic";
+      const dollar = Number(trade?.buy_price_usdt ?? 0);
+
+      // 해선은 국선 계약수로 환산: Math.round(25_000_000 / 환율 / 10_000)
+      const displayContracts = futuresType === "overseas" && dollar > 0
+        ? Math.round(KRW_PER_OVERSEAS_CONTRACT / dollar / USDT_PER_DOMESTIC_CONTRACT)
+        : rawContracts;
+
+      // 김프 라벨
+      const kimpPct  = trade ? calcKimp(trade.sell_price_krw, dollar) : 0;
+      const kimpDiff = trade ? trade.sell_price_krw - dollar : 0;
+      const kimpSign = kimpPct >= 0 ? "+" : "";
+      const kimpLabel = chartMode === "kimp"
+        ? `${kimpSign}${kimpPct.toFixed(2)}%`
+        : `${kimpSign}${kimpDiff.toFixed(1)}원`;
+
       return (
         <g>
           <circle cx={cx} cy={cy} r={5} fill={color} />
-          {showContracts && contracts > 1 && (
-            <text x={cx} y={cy - 8} textAnchor="middle" fontSize={9} fontWeight="bold"
-              fill="hsl(var(--foreground))">
-              {contracts}
+          {showContracts && displayContracts >= 1 && (
+            <text x={cx} y={cy - 8} textAnchor="middle" fontSize={9} fontWeight="bold" fill="#ffffff">
+              {displayContracts}
+            </text>
+          )}
+          {showKimpLabel && trade && (
+            <text x={cx} y={cy + 14} textAnchor="middle" fontSize={9} fill="#F5D060">
+              {kimpLabel}
             </text>
           )}
         </g>
@@ -403,18 +424,6 @@ export default function KimpPage() {
                       );
                     }}
                   />
-                  {showLine && allChartPoints.length > 1 && (
-                    <Customized
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      component={(cp: any) => {
-                        const xs = Object.values(cp.xAxisMap ?? {})[0] as { scale?: (v: number) => number } | undefined;
-                        const ys = Object.values(cp.yAxisMap ?? {})[0] as { scale?: (v: number) => number } | undefined;
-                        if (!xs?.scale || !ys?.scale) return null;
-                        const pts = allChartPoints.map(p => `${xs.scale!(p.x)},${ys.scale!(p.y)}`).join(" ");
-                        return <polyline points={pts} fill="none" stroke="rgba(200,200,200,0.25)" strokeWidth={1} />;
-                      }}
-                    />
-                  )}
                   {chartOpen.length > 0 && (
                     <Scatter data={chartOpen} shape={makeShape("#EF4444")}
                       onClick={(d) => openSheet((d as unknown as { trade: KimpTrade }).trade)} />
@@ -453,9 +462,9 @@ export default function KimpPage() {
                   <span style={{ fontSize: 12 }}>계약 수 표시</span>
                 </label>
                 <label style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", cursor: "pointer" }}>
-                  <input type="checkbox" checked={showLine} onChange={e => setShowLine(e.target.checked)}
+                  <input type="checkbox" checked={showKimpLabel} onChange={e => setShowKimpLabel(e.target.checked)}
                     style={{ flexShrink: 0, width: 16, height: 16 }} />
-                  <span style={{ fontSize: 12 }}>연결선 표시</span>
+                  <span style={{ fontSize: 12 }}>김프값 표기</span>
                 </label>
               </div>
             )}
@@ -496,34 +505,47 @@ export default function KimpPage() {
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <p className="text-[10px] text-muted-foreground mb-0.5">진입 평균 김프</p>
-                  <p className={`text-sm font-bold tabular-nums ${
-                    openAvgKimp === null ? "text-muted-foreground"
-                    : openAvgKimp >= 0 ? "text-red-500" : "text-blue-500"
-                  }`}>
+                  <p className="text-sm font-bold tabular-nums"
+                    style={{ color: openAvgKimp === null ? "hsl(var(--muted-foreground))" : "#F5D060" }}>
                     {openAvgKimp === null ? "-"
                       : `${openAvgKimp >= 0 ? "+" : ""}${openAvgKimp.toFixed(2)}%`}
                   </p>
+                  {openAvgKimp !== null && usdtPrices && (
+                    <p className="text-[9px] tabular-nums" style={{ color: "#F5D060", opacity: 0.65 }}>
+                      {(() => {
+                        const mid = (usdtPrices.bestAsk + usdtPrices.bestBid) / 2;
+                        const v = mid * (openAvgKimp / 100);
+                        return `${v >= 0 ? "+" : ""}${v.toFixed(1)}원`;
+                      })()}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground mb-0.5">청산 평균 김프</p>
-                  <p className={`text-sm font-bold tabular-nums ${
-                    closedAvgKimp === null ? "text-muted-foreground"
-                    : closedAvgKimp >= 0 ? "text-red-500" : "text-blue-500"
-                  }`}>
+                  <p className="text-sm font-bold tabular-nums"
+                    style={{ color: closedAvgKimp === null ? "hsl(var(--muted-foreground))" : "#F5D060" }}>
                     {closedAvgKimp === null ? "-"
                       : `${closedAvgKimp >= 0 ? "+" : ""}${closedAvgKimp.toFixed(2)}%`}
                   </p>
+                  {closedAvgKimp !== null && usdtPrices && (
+                    <p className="text-[9px] tabular-nums" style={{ color: "#F5D060", opacity: 0.65 }}>
+                      {(() => {
+                        const mid = (usdtPrices.bestAsk + usdtPrices.bestBid) / 2;
+                        const v = mid * (closedAvgKimp / 100);
+                        return `${v >= 0 ? "+" : ""}${v.toFixed(1)}원`;
+                      })()}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground mb-0.5">순포지션</p>
-                  <p className={`text-sm font-bold tabular-nums ${
-                    netPosition > 0 ? "text-red-500" : netPosition < 0 ? "text-blue-500" : "text-foreground"
-                  }`}>
+                  <p className="text-sm font-bold tabular-nums"
+                    style={{ color: netPosition === 0 ? "hsl(var(--foreground))" : "#A8E063" }}>
                     {netPosition > 0 ? "+" : ""}{netPosition.toLocaleString()}
-                    <span className="text-[9px] font-normal ml-0.5 text-muted-foreground">USDT</span>
+                    <span className="text-[9px] font-normal ml-0.5" style={{ color: "#A8E063", opacity: 0.75 }}>USDT</span>
                   </p>
                   {usdtPrices && (
-                    <p className="text-[9px] text-muted-foreground tabular-nums">
+                    <p className="text-[9px] tabular-nums" style={{ color: "#A8E063", opacity: 0.75 }}>
                       ≈ {Math.round(netPosition * (usdtPrices.bestAsk + usdtPrices.bestBid) / 2).toLocaleString()}원
                     </p>
                   )}
@@ -612,7 +634,7 @@ function TradeRow({ trade, onEdit, onDelete }: {
         <span className="text-border">|</span>
         <span className="text-muted-foreground">{Number(trade.buy_price_usdt).toFixed(1)}</span>
         <span className="text-border">|</span>
-        <span className={kimp >= 0 ? "text-red-500 font-medium" : "text-blue-500 font-medium"}>
+        <span className="font-medium" style={{ color: "#F5D060" }}>
           {sign}{kimp.toFixed(2)}% ({diff >= 0 ? "+" : ""}{diff.toFixed(1)}원)
         </span>
       </div>
