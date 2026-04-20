@@ -22,6 +22,7 @@ export default function TopBar() {
   const [mounted, setMounted]     = useState(false);
   const [usdt, setUsdt]           = useState<UsdtPrices | null>(null);
   const [usdKrw, setUsdKrw]       = useState<number | null>(null);
+  const [usdStatus, setUsdStatus] = useState<"loading" | "ok" | "error">("loading");
 
   const wsRef      = useRef<WebSocket | null>(null);
   const pingRef    = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -32,11 +33,16 @@ export default function TopBar() {
   const fetchFx = useCallback(async () => {
     try {
       const res = await fetch("/api/usd-rate");
-      if (!res.ok) return;
+      if (!res.ok) { setUsdStatus("error"); return; }
       const data = await res.json();
-      if (data?.rate) setUsdKrw(data.rate);
+      if (typeof data?.rate === "number") {
+        setUsdKrw(data.rate);
+        setUsdStatus("ok");
+      } else {
+        setUsdStatus("error");
+      }
     } catch {
-      // 실패 시 이전 값 유지 (조용히 처리)
+      setUsdStatus("error");
     }
   }, []);
 
@@ -181,9 +187,11 @@ export default function TopBar() {
         <div className="flex items-baseline gap-0.5 shrink-0">
           <span className="text-[10px] text-muted-foreground font-medium leading-none">USD</span>
           <span className="text-[11px] font-bold leading-none tabular-nums text-foreground">
-            {usdKrw
-              ? usdKrw.toLocaleString("ko-KR", { maximumFractionDigits: 1 })
-              : "—"}
+            {usdStatus === "loading"
+              ? "---"
+              : usdStatus === "error"
+              ? "N/A"
+              : usdKrw!.toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
 
