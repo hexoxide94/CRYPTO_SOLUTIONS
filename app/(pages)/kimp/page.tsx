@@ -22,7 +22,12 @@ interface KimpTrade {
   buy_price_usdt: number;
   kimp_rate: number;
   amount: number;
-  detail_json: { contracts: number; futures_type?: "domestic" | "overseas" };
+  detail_json: {
+    contracts: number;
+    futures_type?: "domestic" | "overseas";
+    fee_stable?: number;
+    fee_dollar?: number;
+  };
 }
 
 interface FormState {
@@ -30,6 +35,8 @@ interface FormState {
   futures_type: "domestic" | "overseas";
   stable_price: string;
   dollar_price: string;
+  fee_stable:   string;
+  fee_dollar:   string;
   amount:       string;
   contracts:    string;
   traded_at:    string;
@@ -146,10 +153,27 @@ function defaultForm(): FormState {
     futures_type: "domestic",
     stable_price: "",
     dollar_price: "",
+    fee_stable:   "0",
+    fee_dollar:   "0.003",
     amount:       "",
     contracts:    "",
     traded_at:    toDatetimeLocal(new Date().toISOString()),
   };
+}
+
+// 수수료 보정 계산
+function applyFee(stable: number, dollar: number, feeStable: number, feeDollar: number, tradeType: "open" | "closed") {
+  if (tradeType === "open") {
+    return {
+      stableAdj: stable * (1 + feeStable / 100),
+      dollarAdj: dollar * (1 - feeDollar / 100),
+    };
+  } else {
+    return {
+      stableAdj: stable * (1 - feeStable / 100),
+      dollarAdj: dollar * (1 + feeDollar / 100),
+    };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -245,12 +269,10 @@ export default function KimpPage() {
       const futuresType = trade?.detail_json?.futures_type ?? "domestic";
       const dollar = Number(trade?.buy_price_usdt ?? 0);
 
-      // 해선은 국선 계약수로 환산: Math.round(25_000_000 / 환율 / 10_000)
       const displayContracts = futuresType === "overseas" && dollar > 0
         ? Math.round(KRW_PER_OVERSEAS_CONTRACT / dollar / USDT_PER_DOMESTIC_CONTRACT)
         : rawContracts;
 
-      // 김프 라벨
       const kimpPct  = trade ? calcKimp(trade.sell_price_krw, dollar) : 0;
       const kimpDiff = trade ? trade.sell_price_krw - dollar : 0;
       const kimpSign = kimpPct >= 0 ? "+" : "";
@@ -285,12 +307,15 @@ export default function KimpPage() {
   // ── 시트 ────────────────────────────────────────────────────
   function openSheet(trade?: KimpTrade) {
     if (trade) {
+      const ft = trade.detail_json?.futures_type ?? "domestic";
       setEditingId(trade.id);
       setForm({
         trade_type:   trade.status,
-        futures_type: trade.detail_json?.futures_type ?? "domestic",
-        stable_price: String(trade.sell_price_krw),
+        futures_type: ft,
+        stable_price: Number(trade.sell_price_krw).toFixed(1),
         dollar_price: String(Number(trade.buy_price_usdt)),
+        fee_stable:   String(trade.detail_json?.fee_stable ?? 0),
+        fee_dollar:   String(trade.detail_json?.fee_dollar ?? (ft === "domestic" ? 0.003 : 0.01)),
         amount:       String(Number(trade.amount)),
         contracts:    String(trade.detail_json?.contracts ?? 0),
         traded_at:    toDatetimeLocal(trade.traded_at),
@@ -312,7 +337,12 @@ export default function KimpPage() {
   async function handleSave() {
     const stable    = toNum(form.stable_price);
     const dollar    = toNum(form.dollar_price);
-    const kimp      = calcKimp(stable, dollar);
+    const feeStable = parseFloat(form.fee_stable) || 0;
+    const feeDollar = parseFloat(form.fee_dollar) || 0;
+
+    const { stableAdj, dollarAdj } = applyFee(stable, dollar, feeStable, feeDollar, form.trade_type);
+
+    const kimp      = calcKimp(stableAdj, dollarAdj);
     const contracts = toNum(form.contracts);
     const amount    = form.futures_type === "overseas" && contracts > 0 && dollar > 0
       ? Math.round(contracts * KRW_PER_OVERSEAS_CONTRACT / dollar)
@@ -328,15 +358,20 @@ export default function KimpPage() {
       amount,
       buy_exchange:   "-",
       sell_exchange:  "-",
-      sell_price_krw: stable,
-      buy_price_usdt: dollar,
-      usdt_rate:      stable,
+      sell_price_krw: parseFloat(stableAdj.toFixed(1)),
+      buy_price_usdt: parseFloat(dollarAdj.toFixed(4)),
+      usdt_rate:      parseFloat(stableAdj.toFixed(1)),
       kimp_rate:      parseFloat(kimp.toFixed(4)),
       profit_krw:     0,
       fee_krw:        0,
       memo:           "",
-      detail_json:    { contracts, futures_type: form.futures_type },
-      traded_at:      tradedAt,
+      detail_json:    {
+        contracts,
+        futures_type: form.futures_type,
+        fee_stable:   feeStable,
+        fee_dollar:   feeDollar,
+      },
+      traded_at: tradedAt,
     };
 
     let error;
@@ -415,7 +450,7 @@ export default function KimpPage() {
                       return (
                         <div className="bg-card border border-border rounded-lg p-2 shadow-md text-xs space-y-0.5">
                           <p className="font-semibold text-foreground">{fmtTime(t.traded_at)}</p>
-                          <p className="text-muted-foreground">스테이블: <span className="text-foreground">{t.sell_price_krw.toLocaleString()}원</span></p>
+                          <p className="text-muted-foreground">스테이블: <span className="text-foreground">{Number(t.sell_price_krw).toFixed(1)}원</span></p>
                           <p className="text-muted-foreground">환율: <span className="text-foreground">{Number(t.buy_price_usdt).toFixed(2)}</span></p>
                           <p className="text-muted-foreground">김프: <span className={kimp >= 0 ? "text-red-500" : "text-blue-500"}>{kimp >= 0 ? "+" : ""}{kimp.toFixed(2)}%</span></p>
                           <p className="text-muted-foreground">차이: <span className="text-foreground">{diff >= 0 ? "+" : ""}{diff.toFixed(1)}원</span></p>
@@ -450,7 +485,7 @@ export default function KimpPage() {
               </button>
             </div>
 
-            {/* 옵션 패널 — absolute 우하단, width 고정 */}
+            {/* 옵션 패널 */}
             {showOptions && (
               <div
                 className="absolute bottom-9 right-3 z-10 border border-border rounded-xl bg-card shadow-lg"
@@ -630,7 +665,7 @@ function TradeRow({ trade, onEdit, onDelete }: {
         {fmtTime(trade.traded_at)}
       </span>
       <div className="flex-1 min-w-0 flex items-center gap-1 text-[10px] tabular-nums overflow-hidden">
-        <span className="text-foreground font-medium">{trade.sell_price_krw.toLocaleString()}</span>
+        <span className="text-foreground font-medium">{Number(trade.sell_price_krw).toFixed(1)}</span>
         <span className="text-border">|</span>
         <span className="text-muted-foreground">{Number(trade.buy_price_usdt).toFixed(1)}</span>
         <span className="text-border">|</span>
@@ -671,10 +706,23 @@ function SheetForm({
 }) {
   const patch = (p: Partial<FormState>) => setForm(f => ({ ...f, ...p }));
 
-  const stable     = toNum(form.stable_price);
-  const dollar     = toNum(form.dollar_price);
-  const kimpVal    = calcKimp(stable, dollar);
-  const kimpDisplay = fmtKimpDisplay(stable, dollar);
+  const stable      = toNum(form.stable_price);
+  const dollar      = toNum(form.dollar_price);
+  const feeStable   = parseFloat(form.fee_stable) || 0;
+  const feeDollar   = parseFloat(form.fee_dollar) || 0;
+
+  const { stableAdj, dollarAdj } = applyFee(stable, dollar, feeStable, feeDollar, form.trade_type);
+  const kimpVal     = calcKimp(stableAdj, dollarAdj);
+  const kimpDisplay = fmtKimpDisplay(stableAdj, dollarAdj);
+
+  function handleFuturesTypeChange(ft: "domestic" | "overseas") {
+    patch({
+      futures_type: ft,
+      amount:       "",
+      contracts:    "",
+      fee_dollar:   ft === "domestic" ? "0.003" : "0.01",
+    });
+  }
 
   function calcOverseasAmount(contracts: number, rate: number): string {
     return contracts > 0 && rate > 0
@@ -720,7 +768,7 @@ function SheetForm({
       <div className="flex justify-center pt-3 pb-1">
         <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
       </div>
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+      <div className="flex items-center justify-between px-4 py-1.5 border-b border-border">
         <h2 className="text-base font-bold text-foreground">
           {editingId ? "매매 수정" : "매매 기록"}
         </h2>
@@ -730,13 +778,13 @@ function SheetForm({
         </button>
       </div>
 
-      <div className="px-4 pt-3 pb-4 flex flex-col gap-3 overflow-y-auto" style={{ maxHeight: "68vh" }}>
+      <div className="px-4 pt-2 pb-3 flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: "68vh" }}>
 
         {/* 진입 / 청산 */}
         <div className="flex gap-2">
           {(["open", "closed"] as const).map(t => (
             <button key={t} onClick={() => patch({ trade_type: t })}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors ${
+              className={`flex-1 py-1.5 rounded-xl text-sm font-bold transition-colors ${
                 form.trade_type === t
                   ? t === "open" ? "bg-red-500 text-white" : "bg-blue-500 text-white"
                   : "bg-muted text-muted-foreground"
@@ -746,24 +794,60 @@ function SheetForm({
           ))}
         </div>
 
-        {/* 국선/해선 + 거래 시간 (한 줄) */}
+        {/* 국선/해선 pill switch + 거래 시간 */}
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {(["domestic", "overseas"] as const).map(ft => (
-            <button key={ft}
-              onClick={() => patch({ futures_type: ft, amount: "", contracts: "" })}
-              style={{ width: 70, flexShrink: 0 }}
-              className={`py-2 rounded-xl text-sm font-bold transition-colors ${
-                form.futures_type === ft ? "bg-foreground text-background" : "bg-muted text-muted-foreground"
-              }`}>
-              {ft === "domestic" ? "국선" : "해선"}
-            </button>
-          ))}
+          {/* pill switch */}
+          <div
+            style={{
+              position: "relative",
+              width: 126,
+              height: 30,
+              flexShrink: 0,
+              borderRadius: 999,
+            }}
+            className="bg-muted"
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: 2,
+                bottom: 2,
+                left: form.futures_type === "domestic" ? 2 : "calc(50% + 1px)",
+                width: "calc(50% - 3px)",
+                transition: "left 0.2s ease",
+                borderRadius: 999,
+              }}
+              className="bg-foreground"
+            />
+            {(["domestic", "overseas"] as const).map(ft => (
+              <button
+                key={ft}
+                onClick={() => handleFuturesTypeChange(ft)}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  left: ft === "domestic" ? 0 : "50%",
+                  width: "50%",
+                  zIndex: 1,
+                  fontSize: 12,
+                  fontWeight: "bold",
+                  borderRadius: 999,
+                }}
+                className={`transition-colors ${
+                  form.futures_type === ft ? "text-background" : "text-muted-foreground"
+                }`}
+              >
+                {ft === "domestic" ? "국선" : "해선"}
+              </button>
+            ))}
+          </div>
           <input
             type="datetime-local"
             value={form.traded_at}
             onChange={e => patch({ traded_at: e.target.value })}
             style={{ flex: 1, minWidth: 0 }}
-            className="bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground outline-none border border-transparent focus:border-ring"
+            className="bg-muted rounded-xl px-3 py-1.5 text-sm text-foreground outline-none border border-transparent focus:border-ring"
           />
         </div>
 
@@ -771,7 +855,12 @@ function SheetForm({
         <div className="grid grid-cols-2 gap-2">
           <div>
             <FLabel>스테이블 코인</FLabel>
-            <FInput value={form.stable_price} onChange={v => patch({ stable_price: v })} inputMode="numeric" />
+            <FInput
+              value={form.stable_price}
+              onChange={v => patch({ stable_price: v })}
+              inputMode="decimal"
+              step="0.1"
+            />
           </div>
           <div>
             <FLabel>원달러 환율</FLabel>
@@ -779,10 +868,25 @@ function SheetForm({
           </div>
         </div>
 
-        {/* 김프 실시간 */}
+        {/* 수수료율 */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", flexShrink: 0, width: 72 }}>
+            수수료율 (%)
+          </span>
+          <div style={{ flex: 1 }}>
+            <FLabel>스테이블</FLabel>
+            <FInput value={form.fee_stable} onChange={v => patch({ fee_stable: v })} inputMode="decimal" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <FLabel>달러선물</FLabel>
+            <FInput value={form.fee_dollar} onChange={v => patch({ fee_dollar: v })} inputMode="decimal" />
+          </div>
+        </div>
+
+        {/* 김프 실시간 (보정 후) */}
         {stable > 0 && dollar > 0 && (
-          <div className="bg-muted rounded-xl px-3 py-2 flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">김프</span>
+          <div className="bg-muted rounded-xl px-3 py-1.5 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">김프 (수수료 보정)</span>
             <span className={`text-sm font-bold tabular-nums ${
               kimpVal > 0 ? "text-red-500" : kimpVal < 0 ? "text-blue-500" : "text-foreground"
             }`}>
@@ -816,13 +920,13 @@ function SheetForm({
         )}
 
         {/* 저장 버튼 */}
-        <div className="flex gap-2 pt-1">
+        <div className="flex gap-2 pt-0.5">
           <button onClick={onClose}
-            className="flex-1 py-3 rounded-xl border border-border text-sm font-medium text-foreground active:opacity-70">
+            className="flex-1 py-2 rounded-xl border border-border text-sm font-medium text-foreground active:opacity-70">
             취소
           </button>
           <button onClick={onSave} disabled={saving}
-            className="flex-1 py-3 rounded-xl bg-foreground text-background text-sm font-bold disabled:opacity-50 active:opacity-70">
+            className="flex-1 py-2 rounded-xl bg-foreground text-background text-sm font-bold disabled:opacity-50 active:opacity-70">
             {saving ? "저장 중..." : editingId ? "수정 완료" : "등록 완료"}
           </button>
         </div>
@@ -832,18 +936,22 @@ function SheetForm({
 }
 
 function FLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-medium text-muted-foreground mb-1">{children}</p>;
+  return <p className="text-[10px] font-medium text-muted-foreground mb-0.5">{children}</p>;
 }
 
-function FInput({ value, onChange, inputMode }: {
-  value: string; onChange: (v: string) => void;
+function FInput({ value, onChange, inputMode, step }: {
+  value: string;
+  onChange: (v: string) => void;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  step?: string;
 }) {
   return (
     <input
-      inputMode={inputMode} value={value}
+      inputMode={inputMode}
+      step={step}
+      value={value}
       onChange={e => onChange(e.target.value)}
-      className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none border border-transparent focus:border-ring tabular-nums"
+      className="w-full bg-muted rounded-xl px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground outline-none border border-transparent focus:border-ring tabular-nums"
     />
   );
 }
