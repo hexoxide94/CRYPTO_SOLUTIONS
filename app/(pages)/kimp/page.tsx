@@ -27,6 +27,8 @@ interface KimpTrade {
     futures_type?: "domestic" | "overseas";
     fee_stable?: number;
     fee_dollar?: number;
+    original_stable?: number;
+    original_dollar?: number;
   };
 }
 
@@ -165,6 +167,20 @@ function defaultForm(): FormState {
   };
 }
 
+function reverseFee(stableAdj: number, dollarAdj: number, feeStable: number, feeDollar: number, tradeType: "open" | "closed") {
+  if (tradeType === "open") {
+    return {
+      stable: stableAdj / (1 + feeStable / 100),
+      dollar: dollarAdj / (1 - feeDollar / 100),
+    };
+  } else {
+    return {
+      stable: stableAdj / (1 - feeStable / 100),
+      dollar: dollarAdj / (1 + feeDollar / 100),
+    };
+  }
+}
+
 // 수수료 보정 계산
 function applyFee(stable: number, dollar: number, feeStable: number, feeDollar: number, tradeType: "open" | "closed") {
   if (tradeType === "open") {
@@ -186,6 +202,7 @@ export default function KimpPage() {
   const [loading, setLoading]             = useState(true);
   const [sheetOpen, setSheetOpen]         = useState(false);
   const [editingId, setEditingId]         = useState<number | null>(null);
+  const [isEditMode, setIsEditMode]       = useState(false);
   const [form, setForm]                   = useState<FormState>(defaultForm());
   const [saving, setSaving]               = useState(false);
   const [chartMode, setChartMode]         = useState<"kimp" | "diff">("kimp");
@@ -348,14 +365,21 @@ export default function KimpPage() {
   function openSheet(trade?: KimpTrade) {
     if (trade) {
       const ft = trade.detail_json?.futures_type ?? "domestic";
+      const f_stable = trade.detail_json?.fee_stable ?? 0;
+      const f_dollar = trade.detail_json?.fee_dollar ?? (ft === "domestic" ? 0.003 : 0.01);
+      
+      const orig = trade.detail_json?.original_stable !== undefined 
+        ? { stable: trade.detail_json.original_stable, dollar: trade.detail_json.original_dollar! }
+        : reverseFee(Number(trade.sell_price_krw), Number(trade.buy_price_usdt), f_stable, f_dollar, trade.status);
+
       setEditingId(trade.id);
       setForm({
         trade_type:   trade.status,
         futures_type: ft,
-        stable_price: fmtStable(Number(trade.sell_price_krw)),
-        dollar_price: String(Number(trade.buy_price_usdt)),
-        fee_stable:   String(trade.detail_json?.fee_stable ?? 0),
-        fee_dollar:   String(trade.detail_json?.fee_dollar ?? (ft === "domestic" ? 0.003 : 0.01)),
+        stable_price: String(parseFloat(orig.stable.toFixed(1))),
+        dollar_price: String(parseFloat(orig.dollar.toFixed(4))),
+        fee_stable:   String(f_stable),
+        fee_dollar:   String(f_dollar),
         amount:       String(Number(trade.amount)),
         contracts:    String(trade.detail_json?.contracts ?? 0),
         traded_at:    toDatetimeLocal(trade.traded_at),
@@ -411,6 +435,8 @@ export default function KimpPage() {
         futures_type: form.futures_type,
         fee_stable:   feeStable,
         fee_dollar:   feeDollar,
+        original_stable: stable,
+        original_dollar: dollar,
       },
       traded_at: tradedAt,
     };
@@ -684,8 +710,10 @@ export default function KimpPage() {
                   <TradeRow
                     key={trade.id}
                     trade={trade}
-                    onEdit={() => openSheet(trade)}
-                    onDelete={() => handleDelete(trade.id)}
+                    isEditMode={isEditMode}
+                    onLongPress={() => setIsEditMode(true)}
+                    onEdit={() => { setIsEditMode(false); openSheet(trade); }}
+                    onDelete={() => { setIsEditMode(false); handleDelete(trade.id); }}
                   />
                 ))}
               </div>
@@ -696,27 +724,30 @@ export default function KimpPage() {
 
       {/* 플로팅 버튼 */}
       <div
-        className="fixed left-0 right-0 max-w-[390px] mx-auto flex justify-end pointer-events-none"
+        className="fixed left-0 right-0 max-w-[390px] mx-auto pointer-events-none flex"
         style={{
           bottom: "calc(var(--bottomnav-h, 60px) + env(safe-area-inset-bottom) + 16px)",
-          paddingRight: 16,
+          paddingLeft: 16, paddingRight: 16,
           zIndex: 50,
+          justifyContent: isEditMode ? "center" : "flex-end"
         }}
       >
-        <button
-          onClick={() => openSheet()}
-          className="pointer-events-auto bg-foreground text-background active:opacity-80 transition-opacity flex items-center justify-center shadow-lg"
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 12,
-            fontSize: 24,
-            fontWeight: 300,
-            lineHeight: 1,
-          }}
-        >
-          +
-        </button>
+        {isEditMode ? (
+          <button
+            onClick={() => setIsEditMode(false)}
+            className="pointer-events-auto bg-card border border-border text-foreground px-6 py-2.5 rounded-full shadow-xl font-medium active:opacity-80 transition-opacity text-sm"
+          >
+            수정 모드 취소
+          </button>
+        ) : (
+          <button
+            onClick={() => openSheet()}
+            className="pointer-events-auto bg-foreground text-background active:opacity-80 transition-opacity flex items-center justify-center shadow-xl"
+            style={{ width: 44, height: 44, borderRadius: 12, fontSize: 24, fontWeight: 300, lineHeight: 1 }}
+          >
+            +
+          </button>
+        )}
       </div>
 
       {sheetOpen && <div className="fixed inset-0 z-[60] bg-black/50" onClick={closeSheet} />}
@@ -747,49 +778,60 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 }
 
 // ─── 이력 행 ────────────────────────────────────────────────────
-function TradeRow({ trade, onEdit, onDelete }: {
-  trade: KimpTrade; onEdit: () => void; onDelete: () => void;
+function TradeRow({ trade, isEditMode, onLongPress, onEdit, onDelete }: {
+  trade: KimpTrade; isEditMode: boolean; onLongPress: () => void; onEdit: () => void; onDelete: () => void;
 }) {
   const isOpen = trade.status === "open";
   const kimp   = calcKimp(trade.sell_price_krw, Number(trade.buy_price_usdt));
   const diff   = trade.sell_price_krw - Number(trade.buy_price_usdt);
   const sign   = kimp >= 0 ? "+" : "";
 
+  let timer: ReturnType<typeof setTimeout>;
+  const handleStart = () => { timer = setTimeout(onLongPress, 500); };
+  const handleEnd = () => { clearTimeout(timer); };
+
   return (
-    <div className="flex items-center gap-1.5 bg-muted/20 hover:bg-muted/40 transition-colors border border-border/30 rounded-lg px-2 py-1.5">
-      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-        isOpen
-          ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-          : "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
-      }`}>
-        {isOpen ? "진입" : "청산"}
-      </span>
-      <span className="text-[10px] text-muted-foreground tabular-nums shrink-0 w-[58px]">
-        {fmtTime(trade.traded_at)}
-      </span>
-      <div className="flex-1 min-w-0 flex items-center gap-1 text-[10px] tabular-nums overflow-hidden">
-        <span className="text-foreground font-medium">{fmtStable(Number(trade.sell_price_krw))}</span>
-        <span className="text-border">|</span>
-        <span className="text-muted-foreground">{Number(trade.buy_price_usdt).toFixed(1)}</span>
-        <span className="text-border">|</span>
-        <span className="font-medium text-foreground">
-          {sign}{kimp.toFixed(2)}%
+    <div 
+      className="relative flex items-center bg-muted/20 hover:bg-muted/40 transition-colors border border-border/30 rounded-lg overflow-hidden h-10 select-none"
+      onTouchStart={handleStart} onTouchEnd={handleEnd} onTouchMove={handleEnd}
+      onMouseDown={handleStart} onMouseUp={handleEnd} onMouseLeave={handleEnd}
+    >
+      <div className={`absolute inset-y-0 left-0 right-0 flex items-center gap-1.5 px-2 transition-transform duration-300 ease-in-out ${isEditMode ? "-translate-x-16" : "translate-x-0"}`}>
+        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+          isOpen
+            ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+            : "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+        }`}>
+          {isOpen ? "진입" : "청산"}
         </span>
-        <span className="text-muted-foreground">
-          {" "}({diff >= 0 ? "+" : ""}{diff.toFixed(1)}원)
+        <span className="text-[10px] text-muted-foreground tabular-nums shrink-0 w-[58px]">
+          {fmtTime(trade.traded_at)}
+        </span>
+        <div className="flex-1 min-w-0 flex items-center gap-1 text-[10px] tabular-nums overflow-hidden">
+          <span className="text-foreground font-medium">{fmtStable(Number(trade.sell_price_krw))}</span>
+          <span className="text-border">|</span>
+          <span className="text-muted-foreground">{Number(trade.buy_price_usdt).toFixed(1)}</span>
+          <span className="text-border">|</span>
+          <span className="font-medium text-foreground">
+            {sign}{kimp.toFixed(2)}%
+          </span>
+          <span className="text-muted-foreground">
+            {" "}({diff >= 0 ? "+" : ""}{diff.toFixed(1)}원)
+          </span>
+        </div>
+        <span className="text-[10px] font-semibold tabular-nums shrink-0 text-foreground">
+          {Number(trade.amount).toLocaleString()}
         </span>
       </div>
-      <span className="text-[10px] font-semibold tabular-nums shrink-0 text-foreground">
-        {Number(trade.amount).toLocaleString()}
-      </span>
-      <div className="flex shrink-0">
-        <button onClick={onEdit}
-          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-          <Pencil size={12} />
+
+      <div className={`absolute right-0 inset-y-0 flex items-center pr-2 bg-muted/40 backdrop-blur-sm transition-transform duration-300 ease-in-out ${isEditMode ? "translate-x-0" : "translate-x-full"}`}>
+        <button onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+          <Pencil size={14} />
         </button>
-        <button onClick={onDelete}
-          className="p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors">
-          <Trash2 size={12} />
+        <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="p-1.5 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors">
+          <Trash2 size={14} />
         </button>
       </div>
     </div>
