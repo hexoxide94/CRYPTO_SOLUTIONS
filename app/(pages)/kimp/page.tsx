@@ -229,6 +229,10 @@ export default function KimpPage() {
   const sumOpen   = summaryTrades.filter(t => t.status === "open");
   const sumClosed = summaryTrades.filter(t => t.status === "closed");
 
+  const summaryDays = summaryRange === "1d" ? 1 : summaryRange === "1w" ? 7 : 30;
+  const openCountPerDay = sumOpen.length / summaryDays;
+  const closedCountPerDay = sumClosed.length / summaryDays;
+
   function weightedAvgKimp(ts: KimpTrade[]): number | null {
     const totalAmt = ts.reduce((s, t) => s + Number(t.amount), 0);
     if (!totalAmt) return null;
@@ -375,6 +379,7 @@ export default function KimpPage() {
       : new Date().toISOString();
 
     setSaving(true);
+    console.log("[handleSave] stableAdj:", stableAdj, "dollarAdj:", dollarAdj, "kimp:", kimp, "amount:", amount);
     const payload = {
       status:         form.trade_type,
       coin:           "USDT",
@@ -396,6 +401,7 @@ export default function KimpPage() {
       },
       traded_at: tradedAt,
     };
+    console.log("[handleSave] payload:", JSON.stringify(payload, null, 2));
 
     let error;
     if (editingId) {
@@ -574,12 +580,15 @@ export default function KimpPage() {
             {/* 요약 카드 */}
             <div className="bg-card border border-border rounded-xl p-3">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex gap-1">
-                  {(["1d", "1w", "1m"] as const).map(r => (
-                    <button key={r} onClick={() => setSummaryRange(r)} className={tbBtn(summaryRange === r)}>
-                      {r === "1d" ? "최근 1일" : r === "1w" ? "최근 1주" : "최근 1달"}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground font-medium">최근 김프 통계</span>
+                  <div className="flex gap-1">
+                    {(["1d", "1w", "1m"] as const).map(r => (
+                      <button key={r} onClick={() => setSummaryRange(r)} className={tbBtn(summaryRange === r)}>
+                        {r === "1d" ? "1일" : r === "1w" ? "1주" : "1달"}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <button
                   onClick={() => setListExpanded(v => !v)}
@@ -591,12 +600,17 @@ export default function KimpPage() {
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <p className="text-[10px] text-muted-foreground mb-0.5">진입 평균 김프</p>
-                  <p className="text-sm font-bold tabular-nums"
-                    style={{ color: openAvgKimp === null ? "hsl(var(--muted-foreground))" : "#FFFFFF" }}>
-                    {openAvgKimp === null ? "-"
-                      : `${openAvgKimp >= 0 ? "+" : ""}${openAvgKimp.toFixed(2)}%`}
-                  </p>
+                  <p className="text-[10px] text-muted-foreground mb-0.5">진입평균</p>
+                  <div className="flex items-baseline gap-1">
+                    <p className="text-sm font-bold tabular-nums"
+                      style={{ color: openAvgKimp === null ? "hsl(var(--muted-foreground))" : "#FFFFFF" }}>
+                      {openAvgKimp === null ? "-"
+                        : `${openAvgKimp >= 0 ? "+" : ""}${openAvgKimp.toFixed(2)}%`}
+                    </p>
+                    <span className="text-[9px] text-muted-foreground tabular-nums">
+                      {openCountPerDay.toFixed(1)}회/일
+                    </span>
+                  </div>
                   {openAvgKimp !== null && usdtPrices && (
                     <p className="text-[9px] tabular-nums" style={{ color: "#9CA3AF" }}>
                       {(() => {
@@ -608,12 +622,17 @@ export default function KimpPage() {
                   )}
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground mb-0.5">청산 평균 김프</p>
-                  <p className="text-sm font-bold tabular-nums"
-                    style={{ color: closedAvgKimp === null ? "hsl(var(--muted-foreground))" : "#FFFFFF" }}>
-                    {closedAvgKimp === null ? "-"
-                      : `${closedAvgKimp >= 0 ? "+" : ""}${closedAvgKimp.toFixed(2)}%`}
-                  </p>
+                  <p className="text-[10px] text-muted-foreground mb-0.5">청산평균</p>
+                  <div className="flex items-baseline gap-1">
+                    <p className="text-sm font-bold tabular-nums"
+                      style={{ color: closedAvgKimp === null ? "hsl(var(--muted-foreground))" : "#FFFFFF" }}>
+                      {closedAvgKimp === null ? "-"
+                        : `${closedAvgKimp >= 0 ? "+" : ""}${closedAvgKimp.toFixed(2)}%`}
+                    </p>
+                    <span className="text-[9px] text-muted-foreground tabular-nums">
+                      {closedCountPerDay.toFixed(1)}회/일
+                    </span>
+                  </div>
                   {closedAvgKimp !== null && usdtPrices && (
                     <p className="text-[9px] tabular-nums" style={{ color: "#9CA3AF" }}>
                       {(() => {
@@ -626,11 +645,13 @@ export default function KimpPage() {
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground mb-0.5">순포지션</p>
-                  <p className="text-sm font-bold tabular-nums"
-                    style={{ color: netPosition === 0 ? "hsl(var(--foreground))" : "#A8E063" }}>
-                    {netPosition > 0 ? "+" : ""}{netPosition.toLocaleString()}
-                    <span className="text-[9px] font-normal ml-0.5" style={{ color: "#9CA3AF" }}>USDT</span>
-                  </p>
+                  <div className="flex items-baseline gap-1">
+                    <p className="text-sm font-bold tabular-nums"
+                      style={{ color: netPosition === 0 ? "hsl(var(--foreground))" : "#A8E063" }}>
+                      {netPosition > 0 ? "+" : ""}{netPosition.toLocaleString()}
+                      <span className="text-[9px] font-normal ml-0.5" style={{ color: "#9CA3AF" }}>USDT</span>
+                    </p>
+                  </div>
                   {usdtPrices && (
                     <p className="text-[9px] tabular-nums" style={{ color: "#9CA3AF" }}>
                       ≈ {Math.round(netPosition * (usdtPrices.bestAsk + usdtPrices.bestBid) / 2).toLocaleString()}원
