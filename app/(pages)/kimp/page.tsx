@@ -189,8 +189,8 @@ export default function KimpPage() {
   const [form, setForm]                   = useState<FormState>(defaultForm());
   const [saving, setSaving]               = useState(false);
   const [chartMode, setChartMode]         = useState<"kimp" | "diff">("kimp");
-  const [chartRange, setChartRange]       = useState<ChartRange>("all");
-  const [equalInterval, setEqualInterval] = useState(false);
+  const [chartRange, setChartRange]       = useState<ChartRange>("1w");
+  const [equalInterval, setEqualInterval] = useState(true);
   const [showOptions, setShowOptions]     = useState(false);
   const [showContracts, setShowContracts] = useState(true);
   const [showKimpLabel, setShowKimpLabel] = useState(true);
@@ -324,12 +324,12 @@ export default function KimpPage() {
         <g>
           <circle cx={cx} cy={cy} r={5} fill={color} stroke="hsl(var(--background))" strokeWidth={1.5} />
           {showContracts && displayContracts >= 1 && (
-            <text x={cx} y={cy - 8} textAnchor="middle" fontSize={9} fontWeight="bold" fill="#ffffff">
+            <text x={cx} y={cy - 8} textAnchor="middle" fontSize={9} fontWeight="bold" fill="currentColor" className="fill-foreground">
               {displayContracts}
             </text>
           )}
           {showKimpLabel && trade && (
-            <text x={cx} y={cy + 14} textAnchor="middle" fontSize={9} fill="#FFFFFF">
+            <text x={cx} y={cy + 14} textAnchor="middle" fontSize={9} fill="currentColor" className="fill-foreground">
               {kimpLabel}
             </text>
           )}
@@ -625,11 +625,11 @@ export default function KimpPage() {
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <div>
+                <div className="bg-background/40 dark:bg-black/20 rounded-lg p-2 border border-white/5">
                   <p className="text-[10px] text-muted-foreground mb-0.5">진입평균</p>
                   <div className="flex items-baseline gap-1">
                     <p className="text-sm font-bold tabular-nums"
-                      style={{ color: openAvgKimp === null ? "hsl(var(--muted-foreground))" : "#FFFFFF" }}>
+                      style={{ color: openAvgKimp === null ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))" }}>
                       {openAvgKimp === null ? "-"
                         : `${openAvgKimp >= 0 ? "+" : ""}${openAvgKimp.toFixed(2)}%`}
                     </p>
@@ -638,7 +638,7 @@ export default function KimpPage() {
                     </span>
                   </div>
                   {openAvgKimp !== null && usdtPrices && (
-                    <p className="text-[9px] tabular-nums" style={{ color: "#9CA3AF" }}>
+                    <p className="text-[9px] text-muted-foreground tabular-nums">
                       {(() => {
                         const mid = (usdtPrices.bestAsk + usdtPrices.bestBid) / 2;
                         const v = mid * (openAvgKimp / 100);
@@ -647,11 +647,11 @@ export default function KimpPage() {
                     </p>
                   )}
                 </div>
-                <div>
+                <div className="bg-background/40 dark:bg-black/20 rounded-lg p-2 border border-white/5">
                   <p className="text-[10px] text-muted-foreground mb-0.5">청산평균</p>
                   <div className="flex items-baseline gap-1">
                     <p className="text-sm font-bold tabular-nums"
-                      style={{ color: closedAvgKimp === null ? "hsl(var(--muted-foreground))" : "#FFFFFF" }}>
+                      style={{ color: closedAvgKimp === null ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))" }}>
                       {closedAvgKimp === null ? "-"
                         : `${closedAvgKimp >= 0 ? "+" : ""}${closedAvgKimp.toFixed(2)}%`}
                     </p>
@@ -660,7 +660,7 @@ export default function KimpPage() {
                     </span>
                   </div>
                   {closedAvgKimp !== null && usdtPrices && (
-                    <p className="text-[9px] tabular-nums" style={{ color: "#9CA3AF" }}>
+                    <p className="text-[9px] text-muted-foreground tabular-nums">
                       {(() => {
                         const mid = (usdtPrices.bestAsk + usdtPrices.bestBid) / 2;
                         const v = mid * (closedAvgKimp / 100);
@@ -669,17 +669,17 @@ export default function KimpPage() {
                     </p>
                   )}
                 </div>
-                <div>
+                <div className="bg-background/40 dark:bg-black/20 rounded-lg p-2 border border-white/5">
                   <p className="text-[10px] text-muted-foreground mb-0.5">순포지션</p>
                   <div className="flex items-baseline gap-1">
                     <p className="text-sm font-bold tabular-nums"
                       style={{ color: netPosition === 0 ? "hsl(var(--foreground))" : "#A8E063" }}>
                       {netPosition > 0 ? "+" : ""}{netPosition.toLocaleString()}
-                      <span className="text-[9px] font-normal ml-0.5" style={{ color: "#9CA3AF" }}>USDT</span>
+                      <span className="text-[9px] text-muted-foreground font-normal ml-0.5">USDT</span>
                     </p>
                   </div>
                   {usdtPrices && (
-                    <p className="text-[9px] tabular-nums" style={{ color: "#9CA3AF" }}>
+                    <p className="text-[9px] text-muted-foreground tabular-nums">
                       ≈ {Math.round(netPosition * (usdtPrices.bestAsk + usdtPrices.bestBid) / 2).toLocaleString()}원
                     </p>
                   )}
@@ -782,10 +782,10 @@ function TradeRow({ trade, onEdit, onDelete }: {
         <span className="text-border">|</span>
         <span className="text-muted-foreground">{Number(trade.buy_price_usdt).toFixed(1)}</span>
         <span className="text-border">|</span>
-        <span className="font-medium" style={{ color: "#FFFFFF" }}>
+        <span className="font-medium text-foreground">
           {sign}{kimp.toFixed(2)}%
         </span>
-        <span style={{ color: "#9CA3AF" }}>
+        <span className="text-muted-foreground">
           {" "}({diff >= 0 ? "+" : ""}{diff.toFixed(1)}원)
         </span>
       </div>
