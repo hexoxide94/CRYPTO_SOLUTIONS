@@ -471,19 +471,16 @@ export default function KimpPage() {
         {/* ── 차트 ── */}
         {trades.length > 0 && (
           <div className="rounded-xl p-2.5 relative shadow-lg backdrop-blur-md border border-white/10"
-            style={{ background: "linear-gradient(145deg, rgba(250,204,21,0.15) 0%, rgba(250,204,21,0.05) 100%)" }}>
+            style={{ background: "linear-gradient(145deg, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0.05) 100%)" }}>
 
             {/* 툴바 */}
             <div className="flex items-center justify-between gap-1 mb-2">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground font-medium">매매 차트</span>
-                <div className="flex items-center gap-0.5">
-                  {(["1d", "1w", "1m", "all"] as const).map(r => (
-                    <button key={r} onClick={() => setChartRange(r)} className={tbBtn(chartRange === r)}>
-                      {CHART_RANGE_LABELS[r]}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex items-center gap-0.5">
+                {(["1d", "1w", "1m", "all"] as const).map(r => (
+                  <button key={r} onClick={() => setChartRange(r)} className={tbBtn(chartRange === r)}>
+                    {CHART_RANGE_LABELS[r]}
+                  </button>
+                ))}
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="flex gap-1">
@@ -635,7 +632,7 @@ export default function KimpPage() {
           <>
             {/* 요약 카드 */}
             <div className="rounded-xl p-2.5 shadow-lg backdrop-blur-md border border-white/10"
-              style={{ background: "linear-gradient(145deg, rgba(250,204,21,0.15) 0%, rgba(250,204,21,0.05) 100%)" }}>
+              style={{ background: "linear-gradient(145deg, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0.05) 100%)" }}>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground font-medium">최근 김프 통계</span>
