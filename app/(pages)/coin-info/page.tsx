@@ -105,8 +105,8 @@ export default function CoinInfoPage() {
           const res = await fetchProxy(`https://api.upbit.com/v1/orderbook?markets=${m}`);
           res.forEach((d: any) => {
             const coin = d.market.replace("KRW-", "");
-            const asks = d.orderbook_units.map((u: any) => ({ price: u.ask_price, qty: u.ask_size })).slice(0, 4).reverse();
-            const bids = d.orderbook_units.map((u: any) => ({ price: u.bid_price, qty: u.bid_size })).slice(0, 4);
+            const asks = d.orderbook_units.map((u: any) => ({ price: u.ask_price, qty: u.ask_size })).slice(0, 3).reverse();
+            const bids = d.orderbook_units.map((u: any) => ({ price: u.bid_price, qty: u.bid_size })).slice(0, 3);
             nextData.upbit[coin] = { asks, bids };
           });
         } catch {}
@@ -117,8 +117,8 @@ export default function CoinInfoPage() {
         try {
           const res = await fetchProxy(`https://api.bithumb.com/public/orderbook/${c}_KRW`);
           if (res.status === "0000" && res.data) {
-            const asks = res.data.asks.map((u: any) => ({ price: parseFloat(u.price), qty: parseFloat(u.quantity) })).slice(0, 4).reverse();
-            const bids = res.data.bids.map((u: any) => ({ price: parseFloat(u.price), qty: parseFloat(u.quantity) })).slice(0, 4);
+            const asks = res.data.asks.map((u: any) => ({ price: parseFloat(u.price), qty: parseFloat(u.quantity) })).slice(0, 3).reverse();
+            const bids = res.data.bids.map((u: any) => ({ price: parseFloat(u.price), qty: parseFloat(u.quantity) })).slice(0, 3);
             nextData.bithumb[c] = { asks, bids };
           }
         } catch {}
@@ -129,8 +129,8 @@ export default function CoinInfoPage() {
         try {
           const res = await fetchProxy(`https://api.coinone.co.kr/public/v2/orderbook/KRW/${c.toUpperCase()}`);
           if (res.result === "success") {
-            const asks = res.asks.map((u: any) => ({ price: parseFloat(u.price), qty: parseFloat(u.qty) })).slice(0, 4).reverse();
-            const bids = res.bids.map((u: any) => ({ price: parseFloat(u.price), qty: parseFloat(u.qty) })).slice(0, 4);
+            const asks = res.asks.map((u: any) => ({ price: parseFloat(u.price), qty: parseFloat(u.qty) })).slice(0, 3).reverse();
+            const bids = res.bids.map((u: any) => ({ price: parseFloat(u.price), qty: parseFloat(u.qty) })).slice(0, 3);
             nextData.coinone[c] = { asks, bids };
           }
         } catch {}
@@ -161,8 +161,7 @@ export default function CoinInfoPage() {
   const filteredMarkets = markets.filter(m => m.coin.includes(search) && !selectedPairs.some(p => p.exchange === m.exchange && p.coin === m.coin));
 
   return (
-    <div className="relative flex flex-col h-full bg-background overflow-hidden p-2"
-         style={{ height: "calc(100vh - var(--topbar-h, 48px) - var(--bottomnav-h, 60px))" }}>
+    <div className="relative flex flex-col min-h-full bg-background p-2">
       
       {/* ── 요약 바 (USDT, USDC) ── */}
       <div className="rounded-xl p-2.5 relative shadow-lg backdrop-blur-md border border-white/10 shrink-0 mb-3"
@@ -187,7 +186,7 @@ export default function CoinInfoPage() {
       </div>
 
       {/* ── 개별 호가창 그리드 ── */}
-      <div className="flex-1 overflow-y-auto scrollbar-hide pb-20">
+      <div className="flex-1 pb-20">
         <div className="grid grid-cols-2 gap-2">
           {selectedPairs.map((pair, idx) => (
             <OrderbookCard key={idx} pair={pair} data={data[pair.exchange][pair.coin]} onRemove={() => removePair(idx)} />
@@ -265,9 +264,9 @@ function OrderbookCard({ pair, data, onRemove }: { pair: Market; data?: Orderboo
       <button onClick={onRemove} className="absolute top-2 right-2 text-muted-foreground hover:text-red-400 transition-colors z-10 bg-background/50 rounded-full p-0.5">
         <X size={12} />
       </button>
-      <div className="px-2.5 py-2 border-b border-white/5 bg-muted/30">
-        <div className="text-[11px] font-extrabold leading-tight tracking-tight text-foreground">{pair.coin} <span className="text-[9px] font-normal text-muted-foreground">/ KRW</span></div>
-        <div className="text-[8px] font-semibold text-muted-foreground uppercase tracking-wider">{exLabel}</div>
+      <div className="flex items-baseline gap-1.5 px-3 py-2 border-b border-white/5 bg-muted/30">
+        <span className="text-[14px] font-extrabold leading-tight text-foreground">{pair.coin}</span>
+        <span className="text-[9px] font-semibold text-muted-foreground uppercase">{exLabel}</span>
       </div>
       <div className="flex-1 flex flex-col p-1.5 justify-center">
         {/* Asks (매도) */}
@@ -278,7 +277,7 @@ function OrderbookCard({ pair, data, onRemove }: { pair: Market; data?: Orderboo
               <span className="text-muted-foreground text-[8.5px] tabular-nums">{ask.qty.toLocaleString(undefined, {maximumFractionDigits:4})}</span>
             </div>
           )) : (
-            <div className="flex items-center justify-center h-[90px] text-[10px] text-muted-foreground">로딩 중...</div>
+            <div className="flex items-center justify-center h-[70px] text-[10px] text-muted-foreground">로딩 중...</div>
           )}
         </div>
         {/* Bids (매수) */}
