@@ -59,6 +59,11 @@ function fmtTime(iso: string) {
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+function fmtStable(v: number): string {
+  const s = v.toFixed(1);
+  return s.endsWith(".0") ? String(Math.round(v)) : s;
+}
+
 function calcKimp(stable: number, dollar: number): number {
   if (!stable || !dollar) return 0;
   return (stable / dollar - 1) * 100;
@@ -330,7 +335,7 @@ export default function KimpPage() {
       setForm({
         trade_type:   trade.status,
         futures_type: ft,
-        stable_price: Number(trade.sell_price_krw).toFixed(1),
+        stable_price: fmtStable(Number(trade.sell_price_krw)),
         dollar_price: String(Number(trade.buy_price_usdt)),
         fee_stable:   String(trade.detail_json?.fee_stable ?? 0),
         fee_dollar:   String(trade.detail_json?.fee_dollar ?? (ft === "domestic" ? 0.003 : 0.01)),
@@ -468,7 +473,7 @@ export default function KimpPage() {
                       return (
                         <div className="bg-card border border-border rounded-lg p-2 shadow-md text-xs space-y-0.5">
                           <p className="font-semibold text-foreground">{fmtTime(t.traded_at)}</p>
-                          <p className="text-muted-foreground">스테이블: <span className="text-foreground">{Number(t.sell_price_krw).toFixed(1)}원</span></p>
+                          <p className="text-muted-foreground">스테이블: <span className="text-foreground">{fmtStable(Number(t.sell_price_krw))}원</span></p>
                           <p className="text-muted-foreground">환율: <span className="text-foreground">{Number(t.buy_price_usdt).toFixed(2)}</span></p>
                           <p className="text-muted-foreground">김프: <span className={kimp >= 0 ? "text-red-500" : "text-blue-500"}>{kimp >= 0 ? "+" : ""}{kimp.toFixed(2)}%</span></p>
                           <p className="text-muted-foreground">차이: <span className="text-foreground">{diff >= 0 ? "+" : ""}{diff.toFixed(1)}원</span></p>
@@ -726,7 +731,7 @@ function TradeRow({ trade, onEdit, onDelete }: {
         {fmtTime(trade.traded_at)}
       </span>
       <div className="flex-1 min-w-0 flex items-center gap-1 text-[10px] tabular-nums overflow-hidden">
-        <span className="text-foreground font-medium">{Number(trade.sell_price_krw).toFixed(1)}</span>
+        <span className="text-foreground font-medium">{fmtStable(Number(trade.sell_price_krw))}</span>
         <span className="text-border">|</span>
         <span className="text-muted-foreground">{Number(trade.buy_price_usdt).toFixed(1)}</span>
         <span className="text-border">|</span>
