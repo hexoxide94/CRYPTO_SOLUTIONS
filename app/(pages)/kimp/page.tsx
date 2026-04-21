@@ -397,7 +397,7 @@ export default function KimpPage() {
 
   // ── 렌더 ────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="relative flex flex-col min-h-full">
       <div className="flex-1 px-2 py-2 flex flex-col gap-2 pb-24">
 
         {/* ── 차트 ── */}
@@ -605,16 +605,23 @@ export default function KimpPage() {
         )}
       </div>
 
-      {/* 하단 버튼 */}
-      <div
-        className="fixed left-0 right-0 max-w-[390px] mx-auto px-2 py-2 bg-background/95 backdrop-blur border-t border-border"
-        style={{ bottom: "calc(var(--bottomnav-h, 60px) + env(safe-area-inset-bottom))" }}
+      {/* 플로팅 버튼 */}
+      <button
+        onClick={() => openSheet()}
+        className="absolute bg-foreground text-background active:opacity-80 transition-opacity flex items-center justify-center"
+        style={{
+          right: 16,
+          bottom: "calc(var(--bottomnav-h, 60px) + env(safe-area-inset-bottom) + 16px)",
+          width: 52,
+          height: 52,
+          borderRadius: 14,
+          fontSize: 26,
+          fontWeight: 300,
+          lineHeight: 1,
+        }}
       >
-        <button onClick={() => openSheet()}
-          className="w-full py-3 rounded-xl bg-foreground text-background font-semibold text-sm flex items-center justify-center gap-1.5 active:opacity-80 transition-opacity">
-          <Plus size={15} />매매 기록
-        </button>
-      </div>
+        +
+      </button>
 
       {sheetOpen && <div className="fixed inset-0 z-[60] bg-black/50" onClick={closeSheet} />}
 
