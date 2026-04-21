@@ -21,10 +21,34 @@ const fetchProxy = async (url: string) => {
 
 export default function CoinInfoPage() {
   const [markets, setMarkets] = useState<Market[]>([]);
-  const [selectedPairs, setSelectedPairs] = useState<Market[]>([
-    { exchange: "upbit", coin: "BTC" },
-    { exchange: "bithumb", coin: "BTC" },
-  ]);
+  const [selectedPairs, setSelectedPairs] = useState<Market[]>([]);
+  const [isPairsLoaded, setIsPairsLoaded] = useState(false);
+
+  // 로컬 스토리지에서 선택된 쌍 불러오기
+  useEffect(() => {
+    const saved = localStorage.getItem("coin-info-pairs");
+    if (saved) {
+      try {
+        setSelectedPairs(JSON.parse(saved));
+      } catch (e) {
+        console.error("로컬 스토리지 파싱 에러", e);
+      }
+    } else {
+      setSelectedPairs([
+        { exchange: "upbit", coin: "BTC" },
+        { exchange: "bithumb", coin: "BTC" },
+      ]);
+    }
+    setIsPairsLoaded(true);
+  }, []);
+
+  // 선택된 쌍이 변경될 때마다 로컬 스토리지에 저장
+  useEffect(() => {
+    if (isPairsLoaded) {
+      localStorage.setItem("coin-info-pairs", JSON.stringify(selectedPairs));
+    }
+  }, [selectedPairs, isPairsLoaded]);
+
   const [data, setData] = useState<{ upbit: ExchangeData; bithumb: ExchangeData; coinone: ExchangeData }>({
     upbit: {}, bithumb: {}, coinone: {},
   });
@@ -103,10 +127,10 @@ export default function CoinInfoPage() {
       // Coinone
       await Promise.all(coinoneCoins.map(async c => {
         try {
-          const res = await fetchProxy(`https://api.coinone.co.kr/public/v2/orderbook/KRW/${c.toUpperCase()}?size=4`);
+          const res = await fetchProxy(`https://api.coinone.co.kr/public/v2/orderbook/KRW/${c.toUpperCase()}`);
           if (res.result === "success") {
-            const asks = res.asks.map((u: any) => ({ price: parseFloat(u.price), qty: parseFloat(u.qty) })).reverse();
-            const bids = res.bids.map((u: any) => ({ price: parseFloat(u.price), qty: parseFloat(u.qty) }));
+            const asks = res.asks.map((u: any) => ({ price: parseFloat(u.price), qty: parseFloat(u.qty) })).slice(0, 4).reverse();
+            const bids = res.bids.map((u: any) => ({ price: parseFloat(u.price), qty: parseFloat(u.qty) })).slice(0, 4);
             nextData.coinone[c] = { asks, bids };
           }
         } catch {}
