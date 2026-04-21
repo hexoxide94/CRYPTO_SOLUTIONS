@@ -608,7 +608,7 @@ export default function KimpPage() {
       {/* 플로팅 버튼 */}
       <button
         onClick={() => openSheet()}
-        className="absolute bg-foreground text-background active:opacity-80 transition-opacity flex items-center justify-center"
+        className="fixed bg-foreground text-background active:opacity-80 transition-opacity flex items-center justify-center"
         style={{
           right: 16,
           bottom: "calc(var(--bottomnav-h, 60px) + env(safe-area-inset-bottom) + 16px)",
@@ -618,6 +618,7 @@ export default function KimpPage() {
           fontSize: 26,
           fontWeight: 300,
           lineHeight: 1,
+          zIndex: 50,
         }}
       >
         +
