@@ -478,7 +478,7 @@ export default function KimpPage() {
             {/* 그래프 */}
             <div style={{ height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={allChartPoints} margin={{ top: 4, right: 0, bottom: 0, left: -15 }}>
+                <ComposedChart data={allChartPoints} margin={{ top: 4, right: 10, bottom: 0, left: -5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="x" type="number"
@@ -493,7 +493,7 @@ export default function KimpPage() {
                     dataKey="y" type="number" domain={yDomain}
                     tickFormatter={yTickFmt}
                     tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
-                    tickLine={false} axisLine={false} width={40}
+                    tickLine={false} axisLine={false} width={35}
                   />
                   <Tooltip
                     cursor={false}
