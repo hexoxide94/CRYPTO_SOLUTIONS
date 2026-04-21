@@ -190,6 +190,11 @@ export default function KimpPage() {
   const [showOptions, setShowOptions]     = useState(false);
   const [showContracts, setShowContracts] = useState(false);
   const [showKimpLabel, setShowKimpLabel] = useState(false);
+  const [yManual, setYManual]             = useState(false);
+  const [yRange, setYRange]               = useState<{
+    kimp: { min: string; max: string };
+    diff: { min: string; max: string };
+  }>({ kimp: { min: "", max: "" }, diff: { min: "", max: "" } });
   const [summaryRange, setSummaryRange]   = useState<SummaryRange>("1d");
   const [listExpanded, setListExpanded]   = useState(true);
   const { usdt: usdtPrices }             = useUsdtPrices();
@@ -257,6 +262,19 @@ export default function KimpPage() {
   const yTickFmt = chartMode === "kimp"
     ? (v: number) => `${v.toFixed(1)}%`
     : (v: number) => `${Math.round(v)}`;
+
+  function setYRangeForMode(field: "min" | "max", value: string) {
+    setYRange(prev => ({ ...prev, [chartMode]: { ...prev[chartMode], [field]: value } }));
+  }
+
+  const yDomain: [number | "auto", number | "auto"] = (() => {
+    if (!yManual) return ["auto", "auto"];
+    const r = yRange[chartMode];
+    return [
+      r.min !== "" ? parseFloat(r.min) : "auto",
+      r.max !== "" ? parseFloat(r.max) : "auto",
+    ];
+  })();
 
   // ── 커스텀 점 렌더러 ─────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -435,7 +453,7 @@ export default function KimpPage() {
                     tickLine={false}
                   />
                   <YAxis
-                    dataKey="y" type="number" domain={["auto", "auto"]}
+                    dataKey="y" type="number" domain={yDomain}
                     tickFormatter={yTickFmt}
                     tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                     tickLine={false} axisLine={false} width={40}
@@ -489,18 +507,47 @@ export default function KimpPage() {
             {showOptions && (
               <div
                 className="absolute bottom-9 right-3 z-10 border border-border rounded-xl bg-card shadow-lg"
-                style={{ width: 160, padding: 12, boxSizing: "border-box", overflow: "hidden" }}
+                style={{ width: 180, padding: 12, boxSizing: "border-box", overflow: "hidden" }}
               >
                 <label style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", cursor: "pointer", marginBottom: 8 }}>
                   <input type="checkbox" checked={showContracts} onChange={e => setShowContracts(e.target.checked)}
                     style={{ flexShrink: 0, width: 16, height: 16 }} />
                   <span style={{ fontSize: 12 }}>계약 수 표시</span>
                 </label>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", cursor: "pointer" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", cursor: "pointer", marginBottom: 8 }}>
                   <input type="checkbox" checked={showKimpLabel} onChange={e => setShowKimpLabel(e.target.checked)}
                     style={{ flexShrink: 0, width: 16, height: 16 }} />
                   <span style={{ fontSize: 12 }}>김프값 표기</span>
                 </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", cursor: "pointer", marginBottom: yManual ? 6 : 0 }}>
+                  <input type="checkbox" checked={yManual} onChange={e => setYManual(e.target.checked)}
+                    style={{ flexShrink: 0, width: 16, height: 16 }} />
+                  <span style={{ fontSize: 12 }}>Y축 수동 설정</span>
+                </label>
+                {yManual && (
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <input
+                      type="number" step="0.01" placeholder="최소"
+                      value={yRange[chartMode].min}
+                      onChange={e => setYRangeForMode("min", e.target.value)}
+                      style={{
+                        width: 0, flex: 1, padding: "3px 5px", fontSize: 11, borderRadius: 6,
+                        background: "hsl(var(--muted))", border: "1px solid hsl(var(--border))",
+                        color: "hsl(var(--foreground))", outline: "none",
+                      }}
+                    />
+                    <input
+                      type="number" step="0.01" placeholder="최대"
+                      value={yRange[chartMode].max}
+                      onChange={e => setYRangeForMode("max", e.target.value)}
+                      style={{
+                        width: 0, flex: 1, padding: "3px 5px", fontSize: 11, borderRadius: 6,
+                        background: "hsl(var(--muted))", border: "1px solid hsl(var(--border))",
+                        color: "hsl(var(--foreground))", outline: "none",
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
