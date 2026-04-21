@@ -79,7 +79,6 @@ function fmtKimpDisplay(stable: number, dollar: number): string {
 
 function getRangeStart(range: ChartRange | SummaryRange): number {
   const now = Date.now();
-  if (range === "1h") return now - 60 * 60 * 1000;
   if (range === "1d") return now - 24 * 60 * 60 * 1000;
   if (range === "1w") return now - 7 * 24 * 60 * 60 * 1000;
   if (range === "1m") return now - 30 * 24 * 60 * 60 * 1000;
