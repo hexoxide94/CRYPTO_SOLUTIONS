@@ -230,8 +230,21 @@ export default function KimpPage() {
   const sumClosed = summaryTrades.filter(t => t.status === "closed");
 
   const summaryDays = summaryRange === "1d" ? 1 : summaryRange === "1w" ? 7 : 30;
-  const openCountPerDay = sumOpen.length / summaryDays;
-  const closedCountPerDay = sumClosed.length / summaryDays;
+
+  function getContractsSum(ts: KimpTrade[]) {
+    return ts.reduce((sum, t) => {
+      const raw = t.detail_json?.contracts ?? 0;
+      const ft = t.detail_json?.futures_type ?? "domestic";
+      const dollar = Number(t.buy_price_usdt ?? 0);
+      const displayContracts = ft === "overseas" && dollar > 0
+        ? Math.round(KRW_PER_OVERSEAS_CONTRACT / dollar / USDT_PER_DOMESTIC_CONTRACT)
+        : raw;
+      return sum + displayContracts;
+    }, 0);
+  }
+
+  const openCountPerDay = getContractsSum(sumOpen) / summaryDays;
+  const closedCountPerDay = getContractsSum(sumClosed) / summaryDays;
 
   function weightedAvgKimp(ts: KimpTrade[]): number | null {
     const totalAmt = ts.reduce((s, t) => s + Number(t.amount), 0);
@@ -619,7 +632,7 @@ export default function KimpPage() {
                         : `${openAvgKimp >= 0 ? "+" : ""}${openAvgKimp.toFixed(2)}%`}
                     </p>
                     <span className="text-[9px] text-muted-foreground tabular-nums">
-                      {openCountPerDay.toFixed(1)}회/일
+                      {openCountPerDay.toFixed(1)}계약/일
                     </span>
                   </div>
                   {openAvgKimp !== null && usdtPrices && (
@@ -641,7 +654,7 @@ export default function KimpPage() {
                         : `${closedAvgKimp >= 0 ? "+" : ""}${closedAvgKimp.toFixed(2)}%`}
                     </p>
                     <span className="text-[9px] text-muted-foreground tabular-nums">
-                      {closedCountPerDay.toFixed(1)}회/일
+                      {closedCountPerDay.toFixed(1)}계약/일
                     </span>
                   </div>
                   {closedAvgKimp !== null && usdtPrices && (
