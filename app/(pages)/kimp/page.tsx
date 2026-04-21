@@ -606,23 +606,29 @@ export default function KimpPage() {
       </div>
 
       {/* 플로팅 버튼 */}
-      <button
-        onClick={() => openSheet()}
-        className="fixed bg-foreground text-background active:opacity-80 transition-opacity flex items-center justify-center"
+      <div
+        className="fixed left-0 right-0 max-w-[390px] mx-auto flex justify-end pointer-events-none"
         style={{
-          right: 16,
           bottom: "calc(var(--bottomnav-h, 60px) + env(safe-area-inset-bottom) + 16px)",
-          width: 52,
-          height: 52,
-          borderRadius: 14,
-          fontSize: 26,
-          fontWeight: 300,
-          lineHeight: 1,
+          paddingRight: 16,
           zIndex: 50,
         }}
       >
-        +
-      </button>
+        <button
+          onClick={() => openSheet()}
+          className="pointer-events-auto bg-foreground text-background active:opacity-80 transition-opacity flex items-center justify-center"
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: 14,
+            fontSize: 26,
+            fontWeight: 300,
+            lineHeight: 1,
+          }}
+        >
+          +
+        </button>
+      </div>
 
       {sheetOpen && <div className="fixed inset-0 z-[60] bg-black/50" onClick={closeSheet} />}
 
