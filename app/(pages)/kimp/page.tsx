@@ -471,32 +471,37 @@ export default function KimpPage() {
         {/* ── 차트 ── */}
         {trades.length > 0 && (
           <div className="rounded-xl p-2.5 relative shadow-lg backdrop-blur-md border border-white/10"
-            style={{ background: "linear-gradient(145deg, rgba(59,130,246,0.12) 0%, rgba(16,185,129,0.05) 100%)" }}>
+            style={{ background: "linear-gradient(145deg, rgba(250,204,21,0.15) 0%, rgba(250,204,21,0.05) 100%)" }}>
 
             {/* 툴바 */}
             <div className="flex items-center justify-between gap-1 mb-2">
-              <div className="flex items-center gap-0.5">
-                {(["1d", "1w", "1m", "all"] as const).map(r => (
-                  <button key={r} onClick={() => setChartRange(r)} className={tbBtn(chartRange === r)}>
-                    {CHART_RANGE_LABELS[r]}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setShowOptions(v => !v)}
-                  className={`p-1 ml-0.5 rounded transition-colors ${showOptions ? "text-foreground bg-muted" : "text-muted-foreground hover:text-foreground"}`}
-                >
-                  <Settings size={14} />
-                </button>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground font-medium">매매 차트</span>
+                <div className="flex items-center gap-0.5">
+                  {(["1d", "1w", "1m", "all"] as const).map(r => (
+                    <button key={r} onClick={() => setChartRange(r)} className={tbBtn(chartRange === r)}>
+                      {CHART_RANGE_LABELS[r]}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="flex gap-1">
                   <LegendDot color="#EF4444" label="진입" />
                   <LegendDot color="#3B82F6" label="청산" />
                 </div>
-                <div className="flex gap-0.5">
-                  <button onClick={() => setChartMode("kimp")}         className={tbBtn(chartMode === "kimp")}>%</button>
-                  <button onClick={() => setChartMode("diff")}         className={tbBtn(chartMode === "diff")}>원</button>
-                  <button onClick={() => setEqualInterval(v => !v)}    className={tbBtn(equalInterval)}>등간격</button>
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={() => setShowOptions(v => !v)}
+                    className={`p-1 mr-0.5 rounded transition-colors ${showOptions ? "text-foreground bg-muted" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    <Settings size={14} />
+                  </button>
+                  <div className="flex gap-0.5">
+                    <button onClick={() => setChartMode("kimp")}         className={tbBtn(chartMode === "kimp")}>%</button>
+                    <button onClick={() => setChartMode("diff")}         className={tbBtn(chartMode === "diff")}>원</button>
+                    <button onClick={() => setEqualInterval(v => !v)}    className={tbBtn(equalInterval)}>등간격</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -630,7 +635,7 @@ export default function KimpPage() {
           <>
             {/* 요약 카드 */}
             <div className="rounded-xl p-2.5 shadow-lg backdrop-blur-md border border-white/10"
-              style={{ background: "linear-gradient(145deg, rgba(139,92,246,0.12) 0%, rgba(236,72,153,0.05) 100%)" }}>
+              style={{ background: "linear-gradient(145deg, rgba(250,204,21,0.15) 0%, rgba(250,204,21,0.05) 100%)" }}>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground font-medium">최근 김프 통계</span>
@@ -690,7 +695,7 @@ export default function KimpPage() {
                 <div className="bg-background/40 dark:bg-black/20 rounded-xl p-2 border border-white/5 flex flex-col items-center justify-between">
                   <p className="text-[11px] text-muted-foreground mb-1">순포지션</p>
                   <p className="text-lg font-bold tabular-nums tracking-tight mb-2"
-                    style={{ color: netPosition === 0 ? "hsl(var(--foreground))" : "#A8E063" }}>
+                    style={{ color: netPosition === 0 ? "hsl(var(--foreground))" : "#22c55e" }}>
                     {netPosition > 0 ? "+" : ""}{netPosition.toLocaleString()}
                   </p>
                   <div className="w-full flex justify-between items-center text-[9px] text-muted-foreground tabular-nums">
@@ -742,7 +747,7 @@ export default function KimpPage() {
         ) : (
           <button
             onClick={() => openSheet()}
-            className="pointer-events-auto bg-foreground text-background active:opacity-80 transition-opacity flex items-center justify-center shadow-xl"
+            className="pointer-events-auto bg-foreground/40 backdrop-blur-md border border-background/20 text-background active:opacity-80 transition-opacity flex items-center justify-center shadow-xl"
             style={{ width: 44, height: 44, borderRadius: 12, fontSize: 24, fontWeight: 300, lineHeight: 1 }}
           >
             +
@@ -787,7 +792,7 @@ function TradeRow({ trade, isEditMode, onLongPress, onEdit, onDelete }: {
   const sign   = kimp >= 0 ? "+" : "";
 
   let timer: ReturnType<typeof setTimeout>;
-  const handleStart = () => { timer = setTimeout(onLongPress, 500); };
+  const handleStart = () => { timer = setTimeout(onLongPress, 800); };
   const handleEnd = () => { clearTimeout(timer); };
 
   return (

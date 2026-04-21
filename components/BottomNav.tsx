@@ -17,7 +17,7 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border max-w-[390px] mx-auto w-full"
+      className="fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-t border-white/5 max-w-[390px] mx-auto w-full"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <ul className="flex" style={{ height: "var(--bottomnav-h, 60px)" }}>
@@ -27,14 +27,14 @@ export default function BottomNav() {
             <li key={href} className="flex-1">
               <Link
                 href={href}
-                className={`flex flex-col items-center justify-center h-full gap-1 transition-colors ${
+                className={`flex flex-col items-center justify-center h-full gap-1 transition-all duration-300 ${
                   active
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "text-foreground drop-shadow-[0_0_10px_rgba(255,255,255,0.3)] scale-[1.03]"
+                    : "text-muted-foreground hover:text-foreground/80"
                 }`}
               >
                 <Icon size={24} strokeWidth={active ? 2.5 : 1.8} />
-                <span className="text-[11px] font-medium leading-none">{label}</span>
+                <span className="text-[10px] font-medium leading-none tracking-tight">{label}</span>
               </Link>
             </li>
           );
