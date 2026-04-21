@@ -192,9 +192,9 @@ export default function KimpPage() {
   const [chartRange, setChartRange]       = useState<ChartRange>("all");
   const [equalInterval, setEqualInterval] = useState(false);
   const [showOptions, setShowOptions]     = useState(false);
-  const [showContracts, setShowContracts] = useState(false);
-  const [showKimpLabel, setShowKimpLabel] = useState(false);
-  const [showTrendLine, setShowTrendLine] = useState(false);
+  const [showContracts, setShowContracts] = useState(true);
+  const [showKimpLabel, setShowKimpLabel] = useState(true);
+  const [showTrendLine, setShowTrendLine] = useState(true);
   const [yManual, setYManual]             = useState(false);
   const [yRange, setYRange]               = useState<{
     kimp: { min: string; max: string };
@@ -431,7 +431,7 @@ export default function KimpPage() {
 
         {/* ── 차트 ── */}
         {trades.length > 0 && (
-          <div className="bg-card border border-border rounded-xl p-3 relative">
+          <div className="bg-card/40 border border-border/40 rounded-xl p-2.5 relative shadow-sm backdrop-blur-sm">
 
             {/* 툴바 */}
             <div className="flex items-center justify-between gap-1 mb-2">
@@ -483,19 +483,22 @@ export default function KimpPage() {
                   />
                   <Tooltip
                     cursor={false}
+                    isAnimationActive={false}
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const t = payload[0].payload.trade as KimpTrade;
                       const kimp = calcKimp(t.sell_price_krw, Number(t.buy_price_usdt));
                       const diff = t.sell_price_krw - Number(t.buy_price_usdt);
                       return (
-                        <div className="bg-card border border-border rounded-lg p-2 shadow-md text-xs space-y-0.5">
-                          <p className="font-semibold text-foreground">{fmtTime(t.traded_at)}</p>
-                          <p className="text-muted-foreground">스테이블: <span className="text-foreground">{fmtStable(Number(t.sell_price_krw))}원</span></p>
-                          <p className="text-muted-foreground">환율: <span className="text-foreground">{Number(t.buy_price_usdt).toFixed(2)}</span></p>
-                          <p className="text-muted-foreground">김프: <span className={kimp >= 0 ? "text-red-500" : "text-blue-500"}>{kimp >= 0 ? "+" : ""}{kimp.toFixed(2)}%</span></p>
-                          <p className="text-muted-foreground">차이: <span className="text-foreground">{diff >= 0 ? "+" : ""}{diff.toFixed(1)}원</span></p>
-                          <p className="text-muted-foreground">수량: <span className="text-foreground">{Number(t.amount).toLocaleString()}</span></p>
+                        <div className="bg-card/90 backdrop-blur-md border border-border/50 rounded-lg p-2 shadow-xl text-[10px] space-y-1 z-50">
+                          <p className="font-semibold text-foreground pb-1 border-b border-border/50 mb-1">{fmtTime(t.traded_at)}</p>
+                          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+                            <span className="text-muted-foreground text-left">스테이블:</span> <span className="text-foreground text-right">{fmtStable(Number(t.sell_price_krw))}원</span>
+                            <span className="text-muted-foreground text-left">환율:</span> <span className="text-foreground text-right">{Number(t.buy_price_usdt).toFixed(1)}</span>
+                            <span className="text-muted-foreground text-left">김프:</span> <span className={`text-right font-medium ${kimp >= 0 ? "text-red-400" : "text-blue-400"}`}>{kimp >= 0 ? "+" : ""}{kimp.toFixed(2)}%</span>
+                            <span className="text-muted-foreground text-left">차이:</span> <span className="text-foreground text-right">{diff >= 0 ? "+" : ""}{diff.toFixed(1)}원</span>
+                            <span className="text-muted-foreground text-left">수량:</span> <span className="text-foreground text-right">{Number(t.amount).toLocaleString()}</span>
+                          </div>
                         </div>
                       );
                     }}
@@ -586,7 +589,7 @@ export default function KimpPage() {
         ) : (
           <>
             {/* 요약 카드 */}
-            <div className="bg-card border border-border rounded-xl p-3">
+            <div className="bg-card/40 border border-border/40 rounded-xl p-2.5 shadow-sm backdrop-blur-sm">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground font-medium">최근 김프 통계</span>
@@ -748,7 +751,7 @@ function TradeRow({ trade, onEdit, onDelete }: {
   const sign   = kimp >= 0 ? "+" : "";
 
   return (
-    <div className="flex items-center gap-1.5 bg-card border border-border rounded-lg px-2 py-2">
+    <div className="flex items-center gap-1.5 bg-muted/20 hover:bg-muted/40 transition-colors border border-border/30 rounded-lg px-2 py-1.5">
       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
         isOpen
           ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
