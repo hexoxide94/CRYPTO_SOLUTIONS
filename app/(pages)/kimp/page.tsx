@@ -625,64 +625,54 @@ export default function KimpPage() {
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <div className="bg-background/40 dark:bg-black/20 rounded-lg p-2 border border-white/5">
-                  <p className="text-[10px] text-muted-foreground mb-0.5">진입평균</p>
-                  <div className="flex items-baseline gap-1">
-                    <p className="text-sm font-bold tabular-nums"
-                      style={{ color: openAvgKimp === null ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))" }}>
-                      {openAvgKimp === null ? "-"
-                        : `${openAvgKimp >= 0 ? "+" : ""}${openAvgKimp.toFixed(2)}%`}
-                    </p>
-                    <span className="text-[9px] text-muted-foreground tabular-nums">
-                      {openCountPerDay.toFixed(1)}계약/일
-                    </span>
-                  </div>
-                  {openAvgKimp !== null && usdtPrices && (
-                    <p className="text-[9px] text-muted-foreground tabular-nums">
-                      {(() => {
+                <div className="bg-background/40 dark:bg-black/20 rounded-xl p-2 border border-white/5 flex flex-col items-center justify-between">
+                  <p className="text-[11px] text-muted-foreground mb-1">진입평균</p>
+                  <p className="text-lg font-bold tabular-nums tracking-tight mb-2"
+                    style={{ color: openAvgKimp === null ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))" }}>
+                    {openAvgKimp === null ? "-"
+                      : `${openAvgKimp >= 0 ? "+" : ""}${openAvgKimp.toFixed(2)}%`}
+                  </p>
+                  <div className="w-full flex justify-between items-center text-[9px] text-muted-foreground tabular-nums">
+                    <span>
+                      {openAvgKimp !== null && usdtPrices ? (() => {
                         const mid = (usdtPrices.bestAsk + usdtPrices.bestBid) / 2;
                         const v = mid * (openAvgKimp / 100);
                         return `${v >= 0 ? "+" : ""}${v.toFixed(1)}원`;
-                      })()}
-                    </p>
-                  )}
-                </div>
-                <div className="bg-background/40 dark:bg-black/20 rounded-lg p-2 border border-white/5">
-                  <p className="text-[10px] text-muted-foreground mb-0.5">청산평균</p>
-                  <div className="flex items-baseline gap-1">
-                    <p className="text-sm font-bold tabular-nums"
-                      style={{ color: closedAvgKimp === null ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))" }}>
-                      {closedAvgKimp === null ? "-"
-                        : `${closedAvgKimp >= 0 ? "+" : ""}${closedAvgKimp.toFixed(2)}%`}
-                    </p>
-                    <span className="text-[9px] text-muted-foreground tabular-nums">
-                      {closedCountPerDay.toFixed(1)}계약/일
+                      })() : "-"}
                     </span>
+                    <span>{openCountPerDay.toFixed(1)}계약/일</span>
                   </div>
-                  {closedAvgKimp !== null && usdtPrices && (
-                    <p className="text-[9px] text-muted-foreground tabular-nums">
-                      {(() => {
+                </div>
+                <div className="bg-background/40 dark:bg-black/20 rounded-xl p-2 border border-white/5 flex flex-col items-center justify-between">
+                  <p className="text-[11px] text-muted-foreground mb-1">청산평균</p>
+                  <p className="text-lg font-bold tabular-nums tracking-tight mb-2"
+                    style={{ color: closedAvgKimp === null ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))" }}>
+                    {closedAvgKimp === null ? "-"
+                      : `${closedAvgKimp >= 0 ? "+" : ""}${closedAvgKimp.toFixed(2)}%`}
+                  </p>
+                  <div className="w-full flex justify-between items-center text-[9px] text-muted-foreground tabular-nums">
+                    <span>
+                      {closedAvgKimp !== null && usdtPrices ? (() => {
                         const mid = (usdtPrices.bestAsk + usdtPrices.bestBid) / 2;
                         const v = mid * (closedAvgKimp / 100);
                         return `${v >= 0 ? "+" : ""}${v.toFixed(1)}원`;
-                      })()}
-                    </p>
-                  )}
-                </div>
-                <div className="bg-background/40 dark:bg-black/20 rounded-lg p-2 border border-white/5">
-                  <p className="text-[10px] text-muted-foreground mb-0.5">순포지션</p>
-                  <div className="flex items-baseline gap-1">
-                    <p className="text-sm font-bold tabular-nums"
-                      style={{ color: netPosition === 0 ? "hsl(var(--foreground))" : "#A8E063" }}>
-                      {netPosition > 0 ? "+" : ""}{netPosition.toLocaleString()}
-                      <span className="text-[9px] text-muted-foreground font-normal ml-0.5">USDT</span>
-                    </p>
+                      })() : "-"}
+                    </span>
+                    <span>{closedCountPerDay.toFixed(1)}계약/일</span>
                   </div>
-                  {usdtPrices && (
-                    <p className="text-[9px] text-muted-foreground tabular-nums">
-                      ≈ {Math.round(netPosition * (usdtPrices.bestAsk + usdtPrices.bestBid) / 2).toLocaleString()}원
-                    </p>
-                  )}
+                </div>
+                <div className="bg-background/40 dark:bg-black/20 rounded-xl p-2 border border-white/5 flex flex-col items-center justify-between">
+                  <p className="text-[11px] text-muted-foreground mb-1">순포지션</p>
+                  <p className="text-lg font-bold tabular-nums tracking-tight mb-2"
+                    style={{ color: netPosition === 0 ? "hsl(var(--foreground))" : "#A8E063" }}>
+                    {netPosition > 0 ? "+" : ""}{netPosition.toLocaleString()}
+                  </p>
+                  <div className="w-full flex justify-between items-center text-[9px] text-muted-foreground tabular-nums">
+                    <span>
+                      {usdtPrices ? `≈ ${Math.round(netPosition * (usdtPrices.bestAsk + usdtPrices.bestBid) / 2).toLocaleString()}원` : "-"}
+                    </span>
+                    <span>USDT</span>
+                  </div>
                 </div>
               </div>
             </div>
