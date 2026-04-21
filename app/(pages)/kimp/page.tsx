@@ -450,7 +450,7 @@ export default function KimpPage() {
                 </button>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="flex gap-1 hidden sm:flex">
+                <div className="flex gap-1">
                   <LegendDot color="#EF4444" label="진입" />
                   <LegendDot color="#3B82F6" label="청산" />
                 </div>
