@@ -440,11 +440,12 @@ export default function KimpPage() {
   // ── 렌더 ────────────────────────────────────────────────────
   return (
     <div className="relative flex flex-col min-h-full">
-      <div className="flex-1 px-2 py-2 flex flex-col gap-2 pb-24">
+      <div className="flex-1 px-1 py-1 flex flex-col gap-1.5 pb-24">
 
         {/* ── 차트 ── */}
         {trades.length > 0 && (
-          <div className="bg-card/40 border border-border/40 rounded-xl p-2.5 relative shadow-sm backdrop-blur-sm">
+          <div className="rounded-xl p-2.5 relative shadow-lg backdrop-blur-md border border-white/10"
+            style={{ background: "linear-gradient(145deg, rgba(59,130,246,0.12) 0%, rgba(16,185,129,0.05) 100%)" }}>
 
             {/* 툴바 */}
             <div className="flex items-center justify-between gap-1 mb-2">
@@ -477,7 +478,7 @@ export default function KimpPage() {
             {/* 그래프 */}
             <div style={{ height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={allChartPoints} margin={{ top: 4, right: 8, bottom: 0, left: 5 }}>
+                <ComposedChart data={allChartPoints} margin={{ top: 4, right: 0, bottom: 0, left: -15 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="x" type="number"
@@ -602,7 +603,8 @@ export default function KimpPage() {
         ) : (
           <>
             {/* 요약 카드 */}
-            <div className="bg-card/40 border border-border/40 rounded-xl p-2.5 shadow-sm backdrop-blur-sm">
+            <div className="rounded-xl p-2.5 shadow-lg backdrop-blur-md border border-white/10"
+              style={{ background: "linear-gradient(145deg, rgba(139,92,246,0.12) 0%, rgba(236,72,153,0.05) 100%)" }}>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground font-medium">최근 김프 통계</span>
