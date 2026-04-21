@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUsdtPrices } from "@/lib/usdt-context";
 import {
-  ScatterChart, Scatter, XAxis, YAxis, CartesianGrid,
+  ComposedChart, Scatter, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Plus, Pencil, Trash2, X, Settings, ChevronDown, ChevronUp } from "lucide-react";
@@ -195,6 +195,7 @@ export default function KimpPage() {
   const [showOptions, setShowOptions]     = useState(false);
   const [showContracts, setShowContracts] = useState(false);
   const [showKimpLabel, setShowKimpLabel] = useState(false);
+  const [showTrendLine, setShowTrendLine] = useState(false);
   const [yManual, setYManual]             = useState(false);
   const [yRange, setYRange]               = useState<{
     kimp: { min: string; max: string };
@@ -309,7 +310,7 @@ export default function KimpPage() {
 
       return (
         <g>
-          <circle cx={cx} cy={cy} r={5} fill={color} />
+          <circle cx={cx} cy={cy} r={5} fill={color} stroke="hsl(var(--background))" strokeWidth={1.5} />
           {showContracts && displayContracts >= 1 && (
             <text x={cx} y={cy - 8} textAnchor="middle" fontSize={9} fontWeight="bold" fill="#ffffff">
               {displayContracts}
@@ -452,7 +453,7 @@ export default function KimpPage() {
             {/* 그래프 */}
             <div style={{ height: 160 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ top: 4, right: 8, bottom: 0, left: 5 }}>
+                <ComposedChart data={allChartPoints} margin={{ top: 4, right: 8, bottom: 0, left: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="x" type="number"
@@ -496,7 +497,10 @@ export default function KimpPage() {
                     <Scatter data={chartClosed} shape={makeShape("#3B82F6")}
                       onClick={(d) => openSheet((d as unknown as { trade: KimpTrade }).trade)} />
                   )}
-                </ScatterChart>
+                  {showTrendLine && (
+                    <Line type="monotone" dataKey="y" stroke="#9CA3AF" strokeWidth={1.5} dot={false} activeDot={false} opacity={0.5} />
+                  )}
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
 
@@ -520,6 +524,11 @@ export default function KimpPage() {
                 className="absolute bottom-9 right-3 z-10 border border-border rounded-xl bg-card shadow-lg"
                 style={{ width: 180, padding: 12, boxSizing: "border-box", overflow: "hidden" }}
               >
+                <label style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", cursor: "pointer", marginBottom: 8 }}>
+                  <input type="checkbox" checked={showTrendLine} onChange={e => setShowTrendLine(e.target.checked)}
+                    style={{ flexShrink: 0, width: 16, height: 16 }} />
+                  <span style={{ fontSize: 12 }}>추세선 표시</span>
+                </label>
                 <label style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", cursor: "pointer", marginBottom: 8 }}>
                   <input type="checkbox" checked={showContracts} onChange={e => setShowContracts(e.target.checked)}
                     style={{ flexShrink: 0, width: 16, height: 16 }} />
