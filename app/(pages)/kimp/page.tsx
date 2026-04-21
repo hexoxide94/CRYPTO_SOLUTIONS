@@ -42,7 +42,7 @@ interface FormState {
   traded_at:    string;
 }
 
-type ChartRange   = "1h" | "1d" | "1w" | "1m" | "all";
+type ChartRange   = "1d" | "1w" | "1m" | "all";
 type SummaryRange = "1d" | "1w" | "1m";
 
 // ─── 유틸 ──────────────────────────────────────────────────────
@@ -114,7 +114,7 @@ function computeXTicks(range: ChartRange, filteredAll: KimpTrade[]): number[] | 
     return ticks.length ? ticks : undefined;
   }
 
-  const intervalMs = range === "1h" ? 10 * 60_000 : 4 * 3_600_000;
+  const intervalMs = 4 * 3_600_000;
   const t0 = Math.ceil(rangeStart / intervalMs) * intervalMs;
   const ticks: number[] = [];
   for (let t = t0; t <= now; t += intervalMs) ticks.push(t);
@@ -136,7 +136,7 @@ function xTickFormatter(range: ChartRange, equalInterval: boolean, filteredAll: 
       return `${d.getMonth() + 1}/${d.getDate()}`;
     }
     const d = new Date(v);
-    if (range === "1h" || range === "1d") {
+    if (range === "1d") {
       return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
     }
     if (range === "all") {
@@ -149,7 +149,7 @@ function xTickFormatter(range: ChartRange, equalInterval: boolean, filteredAll: 
 }
 
 const CHART_RANGE_LABELS: Record<ChartRange, string> = {
-  "1h": "1시간", "1d": "1일", "1w": "1주", "1m": "1달", "all": "전체",
+  "1d": "1일", "1w": "1주", "1m": "1달", "all": "전체",
 };
 
 function defaultForm(): FormState {
@@ -436,22 +436,34 @@ export default function KimpPage() {
 
             {/* 툴바 */}
             <div className="flex items-center justify-between gap-1 mb-2">
-              <div className="flex gap-0.5">
-                {(["1h", "1d", "1w", "1m", "all"] as const).map(r => (
+              <div className="flex items-center gap-0.5">
+                {(["1d", "1w", "1m", "all"] as const).map(r => (
                   <button key={r} onClick={() => setChartRange(r)} className={tbBtn(chartRange === r)}>
                     {CHART_RANGE_LABELS[r]}
                   </button>
                 ))}
+                <button
+                  onClick={() => setShowOptions(v => !v)}
+                  className={`p-1 ml-0.5 rounded transition-colors ${showOptions ? "text-foreground bg-muted" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <Settings size={14} />
+                </button>
               </div>
-              <div className="flex gap-0.5">
-                <button onClick={() => setChartMode("kimp")}         className={tbBtn(chartMode === "kimp")}>%</button>
-                <button onClick={() => setChartMode("diff")}         className={tbBtn(chartMode === "diff")}>원</button>
-                <button onClick={() => setEqualInterval(v => !v)}    className={tbBtn(equalInterval)}>등간격</button>
+              <div className="flex items-center gap-1.5">
+                <div className="flex gap-1 hidden sm:flex">
+                  <LegendDot color="#EF4444" label="진입" />
+                  <LegendDot color="#3B82F6" label="청산" />
+                </div>
+                <div className="flex gap-0.5">
+                  <button onClick={() => setChartMode("kimp")}         className={tbBtn(chartMode === "kimp")}>%</button>
+                  <button onClick={() => setChartMode("diff")}         className={tbBtn(chartMode === "diff")}>원</button>
+                  <button onClick={() => setEqualInterval(v => !v)}    className={tbBtn(equalInterval)}>등간격</button>
+                </div>
               </div>
             </div>
 
             {/* 그래프 */}
-            <div style={{ height: 160 }}>
+            <div style={{ height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={allChartPoints} margin={{ top: 4, right: 8, bottom: 0, left: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -504,19 +516,7 @@ export default function KimpPage() {
               </ResponsiveContainer>
             </div>
 
-            {/* 범례 + 설정 */}
-            <div className="flex items-center justify-between mt-1">
-              <div className="flex gap-3">
-                <LegendDot color="#EF4444" label="진입" />
-                <LegendDot color="#3B82F6" label="청산" />
-              </div>
-              <button
-                onClick={() => setShowOptions(v => !v)}
-                className={`p-1 rounded transition-colors ${showOptions ? "text-foreground bg-muted" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                <Settings size={14} />
-              </button>
-            </div>
+            {/* 범례 및 설정은 상단 툴바로 이동됨 */}
 
             {/* 옵션 패널 */}
             {showOptions && (
@@ -698,12 +698,12 @@ export default function KimpPage() {
       >
         <button
           onClick={() => openSheet()}
-          className="pointer-events-auto bg-foreground text-background active:opacity-80 transition-opacity flex items-center justify-center"
+          className="pointer-events-auto bg-foreground text-background active:opacity-80 transition-opacity flex items-center justify-center shadow-lg"
           style={{
-            width: 52,
-            height: 52,
-            borderRadius: 14,
-            fontSize: 26,
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            fontSize: 24,
             fontWeight: 300,
             lineHeight: 1,
           }}
