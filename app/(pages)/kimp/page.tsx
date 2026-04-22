@@ -79,6 +79,21 @@ function fmtKimpDisplay(stable: number, dollar: number): string {
   return `${sign}${pct.toFixed(2)}% (${sign}${diff.toFixed(1)}원)`;
 }
 
+function formatKrwShort(num: number): string {
+  if (!num) return "0원";
+  const absNum = Math.abs(num);
+  const uk = Math.floor(absNum / 100000000);
+  const man = Math.floor((absNum % 100000000) / 10000);
+  const remainder = Math.floor(absNum % 10000);
+
+  let result = "";
+  if (uk > 0) result += `${uk}억 `;
+  if (man > 0) result += `${man.toLocaleString()}만`;
+  if (uk === 0 && man === 0) result += `${remainder.toLocaleString()}`;
+
+  return (num < 0 ? "-" : "") + result.trim() + "원";
+}
+
 function getRangeStart(range: ChartRange | SummaryRange): number {
   const now = Date.now();
   if (range === "1d") return now - 24 * 60 * 60 * 1000;
@@ -217,7 +232,7 @@ export default function KimpPage() {
     kimp: { min: string; max: string };
     diff: { min: string; max: string };
   }>({ kimp: { min: "", max: "" }, diff: { min: "", max: "" } });
-  const [summaryRange, setSummaryRange]   = useState<SummaryRange>("1d");
+  const [summaryRange, setSummaryRange]   = useState<SummaryRange>("1w");
   const [listExpanded, setListExpanded]   = useState(true);
   const { usdt: usdtPrices }             = useUsdtPrices();
 
@@ -697,7 +712,7 @@ export default function KimpPage() {
                   </p>
                   <div className="w-full flex justify-between items-center text-[9px] text-muted-foreground tabular-nums">
                     <span>
-                      {usdtPrices ? `≈ ${Math.round(netPosition * (usdtPrices.bestAsk + usdtPrices.bestBid) / 2).toLocaleString()}원` : "-"}
+                      {usdtPrices ? `≈ ${formatKrwShort(Math.round(netPosition * (usdtPrices.bestAsk + usdtPrices.bestBid) / 2))}` : "-"}
                     </span>
                     <span>USDT</span>
                   </div>
