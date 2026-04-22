@@ -374,10 +374,10 @@ export default function AssetRecordPage() {
 
     const { error } = await supabase.from("asset_snapshots").insert({
       recorded_at: new Date().toISOString(),
-      total_amount: grandTotal,
-      coin_amount: finalCrypto,
-      stock_amount: finalStock,
-      cash_amount: rawCash,
+      total_amount: Math.round(grandTotal),
+      coin_amount: Math.round(finalCrypto),
+      stock_amount: Math.round(finalStock),
+      cash_amount: Math.round(rawCash),
       detail_json: detail,
     });
 
