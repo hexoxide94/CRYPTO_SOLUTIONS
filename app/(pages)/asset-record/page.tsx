@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUsdtPrices } from "@/lib/usdt-context";
-import { RefreshCcw, Plus, X, Trash2 } from "lucide-react";
+import { RefreshCcw, Plus, X, Trash2, Edit2 } from "lucide-react";
 
 // ─── 상수 ──────────────────────────────────────────────────────
 const BANKS = ["하나은행", "국민은행", "신한은행", "카카오뱅크", "케이뱅크", "토스뱅크", "SC제일은행", "우리은행", "우리종금", "농협"];
@@ -43,6 +43,8 @@ interface SnapshotData {
     irp: string;
     pension: string;
   };
+  calculated?: any;
+  kimp?: number;
 }
 
 const INITIAL_DATA: SnapshotData = {
@@ -223,8 +225,23 @@ export default function AssetRecordPage() {
   const [cashTab, setCashTab] = useState<"banks" | "pays" | "securities" | "etc">("banks");
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
 
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState(false);
+
+  function handleEdit(snap: SnapshotRecord) {
+    if (snap.detail_json) {
+      setData({ ...INITIAL_DATA, ...snap.detail_json });
+    }
+    setEditingId(snap.id);
+    setIsFormOpen(true);
+  }
+
+  function handleAddNew() {
+    setData(INITIAL_DATA);
+    setEditingId(null);
+    setIsFormOpen(true);
+  }
 
   const [data, setData] = useState<SnapshotData>(() => {
     if (typeof window === "undefined") return INITIAL_DATA;
@@ -357,10 +374,12 @@ export default function AssetRecordPage() {
   // ─── 등록 처리 ────────────────────────────────────────────────
   async function handleConfirm() {
     setSaving(true);
+    const kimpPercent = usdRate > 0 ? ((usdtRate / usdRate) - 1) * 100 : 0;
     const detail = {
       ...data,
       samsungHedgeValue: SAMSUNG_HEDGE_FIXED_VALUE,
       samsungPrice: samsungPrice,
+      kimp: kimpPercent,
       calculated: {
         rawCash,
         rawCrypto,
@@ -372,19 +391,34 @@ export default function AssetRecordPage() {
       }
     };
 
-    const { error } = await supabase.from("asset_snapshots").insert({
-      recorded_at: new Date().toISOString(),
-      total_amount: Math.round(grandTotal),
-      coin_amount: Math.round(finalCrypto),
-      stock_amount: Math.round(finalStock),
-      cash_amount: Math.round(rawCash),
-      detail_json: detail,
-    });
+    if (editingId) {
+      const { error } = await supabase.from("asset_snapshots").update({
+        total_amount: Math.round(grandTotal),
+        coin_amount: Math.round(finalCrypto),
+        stock_amount: Math.round(finalStock),
+        cash_amount: Math.round(rawCash),
+        detail_json: detail,
+      }).eq("id", editingId);
 
-    setSaving(false);
-    if (error) { alert("저장 실패: " + error.message); return; }
+      setSaving(false);
+      if (error) { alert("수정 실패: " + error.message); return; }
+    } else {
+      const { error } = await supabase.from("asset_snapshots").insert({
+        recorded_at: new Date().toISOString(),
+        total_amount: Math.round(grandTotal),
+        coin_amount: Math.round(finalCrypto),
+        stock_amount: Math.round(finalStock),
+        cash_amount: Math.round(rawCash),
+        detail_json: detail,
+      });
+
+      setSaving(false);
+      if (error) { alert("저장 실패: " + error.message); return; }
+    }
+
     setModal(false);
     setIsFormOpen(false);
+    setEditingId(null);
     fetchSnapshots();
   }
 
@@ -411,25 +445,38 @@ export default function AssetRecordPage() {
           ) : (
             snapshots.map(snap => (
               <div key={snap.id} className="bg-card border border-border rounded-xl p-4 shadow-sm relative group">
-                <button onClick={() => handleDelete(snap.id)} className="absolute top-4 right-4 text-muted-foreground hover:text-red-400 opacity-50 group-hover:opacity-100 transition-opacity">
-                  <Trash2 size={14} />
-                </button>
-                <div className="flex justify-between items-center mb-4 pr-6">
-                  <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-1 rounded-md">{fmtTime(snap.recorded_at)}</span>
-                  <span className="text-sm font-bold text-blue-400">{fmtKrw(snap.total_amount)}</span>
+                <div className="absolute top-4 right-4 flex gap-3 text-muted-foreground opacity-50 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => handleEdit(snap)} className="hover:text-blue-400"><Edit2 size={14} /></button>
+                  <button onClick={() => handleDelete(snap.id)} className="hover:text-red-400"><Trash2 size={14} /></button>
+                </div>
+                <div className="flex justify-between items-center mb-4 pr-16">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-md w-fit">{fmtTime(snap.recorded_at)}</span>
+                    {snap.detail_json?.kimp !== undefined && snap.detail_json.rates?.usdt && (
+                      <span className="text-[10px] font-medium text-muted-foreground/80 pl-0.5">
+                        테더: {fmtNum(snap.detail_json.rates.usdt)} | 김프: {snap.detail_json.kimp > 0 ? "+" : ""}{snap.detail_json.kimp.toFixed(2)}%
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-sm font-bold text-blue-400 shrink-0">{fmtKrw(snap.total_amount)}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="flex flex-col items-center p-2 bg-muted/30 rounded-lg border border-white/5">
-                    <span className="text-[10px] text-muted-foreground mb-1">코인</span>
-                    <span className="text-xs font-semibold text-foreground">{fmtKrw(snap.coin_amount)}</span>
+                  <div className="flex flex-col items-center justify-center py-2 px-1 bg-muted/30 rounded-lg border border-white/5 h-full text-center">
+                    <span className="text-[10px] text-muted-foreground mb-0.5">코인</span>
+                    <span className="text-xs font-semibold text-foreground mb-1">{fmtKrw(snap.coin_amount)}</span>
+                    <span className="text-[9px] text-muted-foreground/60 whitespace-nowrap">
+                      투자 {snap.detail_json?.calculated?.coinInvestAmount ? Math.round(snap.detail_json.calculated.coinInvestAmount / snap.coin_amount * 100) : 0}% / 대기 {snap.detail_json?.calculated?.cryptoStandby ? Math.round(snap.detail_json.calculated.cryptoStandby / snap.coin_amount * 100) : 0}%
+                    </span>
                   </div>
-                  <div className="flex flex-col items-center p-2 bg-muted/30 rounded-lg border border-white/5">
-                    <span className="text-[10px] text-muted-foreground mb-1">주식</span>
-                    <span className="text-xs font-semibold text-foreground">{fmtKrw(snap.stock_amount)}</span>
+                  <div className="flex flex-col items-center justify-center py-2 px-1 bg-muted/30 rounded-lg border border-white/5 h-full text-center">
+                    <span className="text-[10px] text-muted-foreground mb-0.5">주식</span>
+                    <span className="text-xs font-semibold text-foreground mb-1">{fmtKrw(snap.stock_amount)}</span>
+                    <span className="text-[9px] text-transparent">.</span>
                   </div>
-                  <div className="flex flex-col items-center p-2 bg-muted/30 rounded-lg border border-white/5">
-                    <span className="text-[10px] text-muted-foreground mb-1">현금</span>
-                    <span className="text-xs font-semibold text-foreground">{fmtKrw(snap.cash_amount)}</span>
+                  <div className="flex flex-col items-center justify-center py-2 px-1 bg-muted/30 rounded-lg border border-white/5 h-full text-center">
+                    <span className="text-[10px] text-muted-foreground mb-0.5">현금</span>
+                    <span className="text-xs font-semibold text-foreground mb-1">{fmtKrw(snap.cash_amount)}</span>
+                    <span className="text-[9px] text-transparent">.</span>
                   </div>
                 </div>
               </div>
@@ -438,7 +485,7 @@ export default function AssetRecordPage() {
 
           <div className="fixed left-0 right-0 w-full max-w-md mx-auto pointer-events-none flex"
             style={{ bottom: "calc(var(--bottomnav-h, 60px) + env(safe-area-inset-bottom) + 16px)", paddingLeft: 16, paddingRight: 16, zIndex: 40, justifyContent: "flex-end" }}>
-            <button onClick={() => setIsFormOpen(true)}
+            <button onClick={handleAddNew}
               className="pointer-events-auto bg-foreground text-background px-5 py-3 rounded-full shadow-xl font-bold flex items-center gap-2 active:scale-95 transition-transform text-sm">
               <Plus size={16} strokeWidth={3} />
               새 기록 추가
@@ -454,7 +501,7 @@ export default function AssetRecordPage() {
             <div className="flex flex-col border-b border-border bg-card shrink-0 px-3 py-2 pt-3">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-bold text-foreground">새 자산 기록</h2>
-                <button onClick={() => setIsFormOpen(false)} className="p-1 bg-muted rounded-full text-muted-foreground hover:text-foreground">
+                <button onClick={() => { setIsFormOpen(false); setEditingId(null); }} className="p-1 bg-muted rounded-full text-muted-foreground hover:text-foreground">
                   <X size={14} />
                 </button>
               </div>
