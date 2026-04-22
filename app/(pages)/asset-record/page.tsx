@@ -126,7 +126,16 @@ const InputRow = ({ label, value, onChange, placeholder = "0", suffix = "원" }:
 export default function AssetRecordPage() {
   const { usdt } = useUsdtPrices();
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [snapshots, setSnapshots] = useState<any[]>([]);
+  interface SnapshotRecord {
+    id: string;
+    recorded_at: string;
+    total_amount: number;
+    coin_amount: number;
+    stock_amount: number;
+    cash_amount: number;
+    detail_json?: SnapshotData;
+  }
+  const [snapshots, setSnapshots] = useState<SnapshotRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Form states
