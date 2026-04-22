@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useUsdtPrices } from "@/lib/usdt-context";
-import { RefreshCcw } from "lucide-react";
+import { RefreshCcw, Plus, X, Trash2 } from "lucide-react";
 
 // ─── 상수 ──────────────────────────────────────────────────────
 const BANKS = ["하나은행", "국민은행", "신한은행", "카카오뱅크", "케이뱅크", "토스뱅크", "SC제일은행", "우리은행", "우리종금", "농협"];
@@ -93,10 +92,44 @@ function fmtNum(val: string) {
   return num.toLocaleString();
 }
 
+function fmtTime(iso: string) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+// ─── 컴포넌트 분리 (포커스 문제 해결) ─────────────────────────
+interface InputRowProps {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  suffix?: string;
+}
+
+const InputRow = ({ label, value, onChange, placeholder = "0", suffix = "원" }: InputRowProps) => (
+  <div className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+    <span className="text-xs text-muted-foreground w-28">{label}</span>
+    <div className="flex items-center gap-1.5 flex-1 justify-end">
+      <input
+        inputMode="numeric"
+        value={fmtNum(value)}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full max-w-[120px] bg-transparent text-right text-sm font-medium text-foreground outline-none tabular-nums placeholder:text-muted-foreground/30"
+      />
+      <span className="text-xs text-muted-foreground/60 w-5">{suffix}</span>
+    </div>
+  </div>
+);
+
 // ═══════════════════════════════════════════════════════════════
 export default function AssetRecordPage() {
-  const router = useRouter();
   const { usdt } = useUsdtPrices();
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [snapshots, setSnapshots] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Form states
   const [tab, setTab] = useState<"coin" | "stock" | "cash">("coin");
   const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState(false);
@@ -107,7 +140,6 @@ export default function AssetRecordPage() {
       const saved = localStorage.getItem(LS_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Merge with initial to avoid missing keys
         return {
           rates: { ...INITIAL_DATA.rates, ...parsed.rates },
           cash: {
@@ -136,6 +168,18 @@ export default function AssetRecordPage() {
     localStorage.setItem(LS_KEY, JSON.stringify(data));
   }, [data]);
 
+  const fetchSnapshots = useCallback(async () => {
+    setLoading(true);
+    const { data: dbData } = await supabase
+      .from("asset_snapshots")
+      .select("*")
+      .order("recorded_at", { ascending: false });
+    if (dbData) setSnapshots(dbData);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchSnapshots(); }, [fetchSnapshots]);
+
   const updateRates = (patch: Partial<SnapshotData["rates"]>) => {
     setData(prev => ({ ...prev, rates: { ...prev.rates, ...patch } }));
   };
@@ -151,7 +195,11 @@ export default function AssetRecordPage() {
     }
   }, []);
 
-  useEffect(() => { fetchRates(); }, [fetchRates]);
+  useEffect(() => {
+    if (isFormOpen) {
+      fetchRates();
+    }
+  }, [isFormOpen, fetchRates]);
 
   useEffect(() => {
     if (usdt?.bestAsk && !data.rates.usdt) {
@@ -172,10 +220,10 @@ export default function AssetRecordPage() {
     if (k === "서울페이" || k === "온누리상품권") rawCash += toNum(v) * 0.95;
     else rawCash += toNum(v);
   });
-  rawCash -= toNum(data.cash.debt["채무"]); // 채무는 양수로 입력받아 뺌
+  rawCash -= toNum(data.cash.debt["채무"]);
 
   let rawCrypto = 0;
-  let coinInvestAmount = 0; // 코인 투자 금액 (국내 코인 + 해외 USDT)
+  let coinInvestAmount = 0;
   
   Object.values(data.crypto.overseas).forEach(v => {
     const krw = toNum(v) * usdtRate;
@@ -190,11 +238,11 @@ export default function AssetRecordPage() {
   Object.values(data.crypto.domesticDeposit).forEach(v => rawCrypto += toNum(v));
   Object.values(data.crypto.foreignCurrency).forEach(v => rawCrypto += toNum(v) * usdRate);
   
-  rawCrypto += toNum(data.crypto.futuresDomestic); // 원화 기준 평가액 입력
-  rawCrypto += toNum(data.crypto.futuresOverseas) * usdRate; // USD 기준 입력
+  rawCrypto += toNum(data.crypto.futuresDomestic);
+  rawCrypto += toNum(data.crypto.futuresOverseas) * usdRate;
 
   let rawStock = 0;
-  rawStock += toNum(data.stock.overseas) * usdRate; // USD
+  rawStock += toNum(data.stock.overseas) * usdRate;
   rawStock += toNum(data.stock.domestic);
   rawStock += toNum(data.stock.irp);
   rawStock += toNum(data.stock.pension);
@@ -242,228 +290,270 @@ export default function AssetRecordPage() {
     setSaving(false);
     if (error) { alert("저장 실패: " + error.message); return; }
     setModal(false);
-    router.push("/home");
+    setIsFormOpen(false);
+    fetchSnapshots();
   }
 
-  // ─── 컴포넌트 유틸 ────────────────────────────────────────────
-  interface InputRowProps {
-    label: string;
-    value: string;
-    onChange: (val: string) => void;
-    placeholder?: string;
-    suffix?: string;
+  async function handleDelete(id: string) {
+    if (!confirm("이 기록을 삭제하시겠습니까?")) return;
+    const { error } = await supabase.from("asset_snapshots").delete().eq("id", id);
+    if (!error) fetchSnapshots();
   }
 
-  const InputRow = ({ label, value, onChange, placeholder = "0", suffix = "원" }: InputRowProps) => (
-    <div className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-      <span className="text-xs text-muted-foreground w-28">{label}</span>
-      <div className="flex items-center gap-1.5 flex-1 justify-end">
-        <input
-          inputMode="numeric"
-          value={fmtNum(value)}
-          onChange={e => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="w-full max-w-[120px] bg-transparent text-right text-sm font-medium text-foreground outline-none tabular-nums placeholder:text-muted-foreground/30"
-        />
-        <span className="text-xs text-muted-foreground/60 w-5">{suffix}</span>
-      </div>
-    </div>
-  );
-
+  // ─── 화면 렌더링 ────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full bg-background" style={{ height: "calc(100dvh - var(--topbar-h,48px) - var(--bottomnav-h,60px) - env(safe-area-inset-bottom))" }}>
-      
-      {/* ── 글로벌 설정 바 ── */}
-      <div className="flex px-4 py-3 gap-3 border-b border-border bg-card shrink-0">
-        <div className="flex flex-col flex-1 gap-1">
-          <span className="text-[10px] text-muted-foreground">USDT 가격</span>
-          <div className="flex items-center">
-            <input inputMode="numeric" value={fmtNum(data.rates.usdt)} onChange={e => updateRates({ usdt: e.target.value })} className="w-full bg-transparent text-sm font-semibold outline-none" placeholder="0" />
-            <span className="text-xs text-muted-foreground ml-1">원</span>
-          </div>
-        </div>
-        <div className="flex flex-col flex-1 gap-1 border-l border-border pl-3">
-          <span className="text-[10px] text-muted-foreground">달러 환율</span>
-          <div className="flex items-center">
-            <input inputMode="numeric" value={fmtNum(data.rates.usd)} onChange={e => updateRates({ usd: e.target.value })} className="w-full bg-transparent text-sm font-semibold outline-none" placeholder="0" />
-            <span className="text-xs text-muted-foreground ml-1">원</span>
-          </div>
-        </div>
-        <div className="flex flex-col flex-1 gap-1 border-l border-border pl-3">
-          <span className="text-[10px] text-muted-foreground flex items-center justify-between">
-            삼성전자가 <button onClick={fetchRates}><RefreshCcw size={10} /></button>
-          </span>
-          <div className="flex items-center">
-            <input inputMode="numeric" value={fmtNum(data.rates.samsungPrice)} onChange={e => updateRates({ samsungPrice: e.target.value })} className="w-full bg-transparent text-sm font-semibold outline-none" placeholder="0" />
-            <span className="text-xs text-muted-foreground ml-1">원</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 탭 바 ── */}
-      <div className="flex border-b border-border bg-card shrink-0 px-2">
-        {(["coin", "stock", "cash"] as const).map(t => {
-          const label = t === "coin" ? "코인" : t === "stock" ? "주식" : "현금";
-          return (
-            <button key={t} onClick={() => setTab(t)}
-              className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                tab === t ? "text-foreground border-b-2 border-foreground" : "text-muted-foreground hover:text-foreground/80"
-              }`}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── 입력 영역 ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        
-        {/* 코인 탭 */}
-        {tab === "coin" && (
-          <div className="space-y-4">
-            <div className="bg-card border border-border rounded-xl p-4">
-              <h3 className="text-sm font-bold text-foreground mb-2 flex justify-between">해외 거래소 <span className="text-xs font-normal text-muted-foreground">(USDT 입력)</span></h3>
-              {OVERSEAS_EXCHANGES.map(ex => (
-                <InputRow key={ex} label={ex} suffix="$" value={data.crypto.overseas[ex]} onChange={(v: string) => setData(p => ({ ...p, crypto: { ...p.crypto, overseas: { ...p.crypto.overseas, [ex]: v } } }))} />
-              ))}
+    <div className="relative flex flex-col min-h-full">
+      {!isFormOpen ? (
+        <div className="flex-1 px-3 py-3 flex flex-col gap-3 pb-24">
+          {loading ? (
+            <p className="text-center text-sm text-muted-foreground py-8">불러오는 중...</p>
+          ) : snapshots.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-10">
+              <p className="text-sm text-muted-foreground">등록된 자산 기록이 없습니다.</p>
             </div>
-
-            <div className="bg-card border border-border rounded-xl p-4">
-              <h3 className="text-sm font-bold text-foreground mb-2 flex justify-between">국내 거래소 <span className="text-xs font-normal text-muted-foreground">(원화 입력)</span></h3>
-              {DOMESTIC_EXCHANGES.map(ex => (
-                <div key={ex} className="py-2 border-b border-white/5 last:border-0">
-                  <div className="text-xs text-muted-foreground mb-2">{ex}</div>
-                  <div className="flex items-center gap-4">
-                    <InputRow label="코인" value={data.crypto.domesticCoin[ex]} onChange={(v: string) => setData(p => ({ ...p, crypto: { ...p.crypto, domesticCoin: { ...p.crypto.domesticCoin, [ex]: v } } }))} />
-                    <InputRow label="예치금" value={data.crypto.domesticDeposit[ex]} onChange={(v: string) => setData(p => ({ ...p, crypto: { ...p.crypto, domesticDeposit: { ...p.crypto.domesticDeposit, [ex]: v } } }))} />
+          ) : (
+            snapshots.map(snap => (
+              <div key={snap.id} className="bg-card border border-border rounded-xl p-4 shadow-sm relative group">
+                <button onClick={() => handleDelete(snap.id)} className="absolute top-4 right-4 text-muted-foreground hover:text-red-400 opacity-50 group-hover:opacity-100 transition-opacity">
+                  <Trash2 size={14} />
+                </button>
+                <div className="flex justify-between items-center mb-4 pr-6">
+                  <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-1 rounded-md">{fmtTime(snap.recorded_at)}</span>
+                  <span className="text-sm font-bold text-blue-400">{fmtKrw(snap.total_amount)}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="flex flex-col items-center p-2 bg-muted/30 rounded-lg border border-white/5">
+                    <span className="text-[10px] text-muted-foreground mb-1">코인</span>
+                    <span className="text-xs font-semibold text-foreground">{fmtKrw(snap.coin_amount)}</span>
+                  </div>
+                  <div className="flex flex-col items-center p-2 bg-muted/30 rounded-lg border border-white/5">
+                    <span className="text-[10px] text-muted-foreground mb-1">주식</span>
+                    <span className="text-xs font-semibold text-foreground">{fmtKrw(snap.stock_amount)}</span>
+                  </div>
+                  <div className="flex flex-col items-center p-2 bg-muted/30 rounded-lg border border-white/5">
+                    <span className="text-[10px] text-muted-foreground mb-1">현금</span>
+                    <span className="text-xs font-semibold text-foreground">{fmtKrw(snap.cash_amount)}</span>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            <div className="bg-card border border-border rounded-xl p-4">
-              <h3 className="text-sm font-bold text-foreground mb-2 flex justify-between">외화 잔고 <span className="text-xs font-normal text-muted-foreground">(USD 입력)</span></h3>
-              {FOREIGN_CURRENCY_BANKS.map(ex => (
-                <InputRow key={ex} label={ex} suffix="$" value={data.crypto.foreignCurrency[ex]} onChange={(v: string) => setData(p => ({ ...p, crypto: { ...p.crypto, foreignCurrency: { ...p.crypto.foreignCurrency, [ex]: v } } }))} />
-              ))}
-            </div>
-
-            <div className="bg-card border border-border rounded-xl p-4">
-              <h3 className="text-sm font-bold text-foreground mb-2 flex justify-between">선물 <span className="text-xs font-normal text-muted-foreground">(담보금 평가액)</span></h3>
-              <InputRow label="국내 선물 (원화)" value={data.crypto.futuresDomestic} onChange={(v: string) => setData(p => ({ ...p, crypto: { ...p.crypto, futuresDomestic: v } }))} />
-              <InputRow label="해외 선물 (USD)" suffix="$" value={data.crypto.futuresOverseas} onChange={(v: string) => setData(p => ({ ...p, crypto: { ...p.crypto, futuresOverseas: v } }))} />
-            </div>
-          </div>
-        )}
-
-        {/* 주식 탭 */}
-        {tab === "stock" && (
-          <div className="space-y-4">
-            <div className="bg-card border border-border rounded-xl p-4">
-              <InputRow label="해외주식 (USD)" suffix="$" value={data.stock.overseas} onChange={(v: string) => setData(p => ({ ...p, stock: { ...p.stock, overseas: v } }))} />
-              <InputRow label="국내주식" value={data.stock.domestic} onChange={(v: string) => setData(p => ({ ...p, stock: { ...p.stock, domestic: v } }))} />
-              <InputRow label="IRP" value={data.stock.irp} onChange={(v: string) => setData(p => ({ ...p, stock: { ...p.stock, irp: v } }))} />
-              <InputRow label="개인연금" value={data.stock.pension} onChange={(v: string) => setData(p => ({ ...p, stock: { ...p.stock, pension: v } }))} />
-            </div>
-          </div>
-        )}
-
-        {/* 현금 탭 */}
-        {tab === "cash" && (
-          <div className="space-y-4">
-            <div className="bg-card border border-border rounded-xl p-4">
-              <h3 className="text-sm font-bold text-foreground mb-2">은행</h3>
-              {BANKS.map(ex => (
-                <InputRow key={ex} label={ex} value={data.cash.banks[ex]} onChange={(v: string) => setData(p => ({ ...p, cash: { ...p.cash, banks: { ...p.cash.banks, [ex]: v } } }))} />
-              ))}
-            </div>
-
-            <div className="bg-card border border-border rounded-xl p-4">
-              <h3 className="text-sm font-bold text-foreground mb-2">페이</h3>
-              <div className="text-[10px] text-muted-foreground mb-3 leading-relaxed">
-                서울페이 및 온누리상품권은 액면가를 입력하시면 자동으로 5% 할인된 현금 가치로 총합에 계산됩니다.
               </div>
-              {PAYS.map(ex => (
-                <InputRow key={ex} label={ex} value={data.cash.pays[ex]} onChange={(v: string) => setData(p => ({ ...p, cash: { ...p.cash, pays: { ...p.cash.pays, [ex]: v } } }))} />
-              ))}
-            </div>
+            ))
+          )}
 
-            <div className="bg-card border border-border rounded-xl p-4">
-              <h3 className="text-sm font-bold text-foreground mb-2">증권사 예수금</h3>
-              {SECURITIES.map(ex => (
-                <InputRow key={ex} label={ex} value={data.cash.securities[ex]} onChange={(v: string) => setData(p => ({ ...p, cash: { ...p.cash, securities: { ...p.cash.securities, [ex]: v } } }))} />
-              ))}
-            </div>
-
-            <div className="bg-card border border-border rounded-xl p-4">
-              <h3 className="text-sm font-bold text-foreground mb-2">기타</h3>
-              <InputRow label="채무 (양수로 입력)" value={data.cash.debt["채무"]} onChange={(v: string) => setData(p => ({ ...p, cash: { ...p.cash, debt: { ...p.cash.debt, "채무": v } } }))} />
-              {PHYSICALS.map(ex => (
-                <InputRow key={ex} label={ex} value={data.cash.physical[ex]} onChange={(v: string) => setData(p => ({ ...p, cash: { ...p.cash, physical: { ...p.cash.physical, [ex]: v } } }))} />
-              ))}
-            </div>
-          </div>
-        )}
-
-      </div>
-
-      {/* ── 요약 및 등록 버튼 ── */}
-      <div className="shrink-0 bg-card border-t border-border">
-        <div className="px-4 py-3 bg-muted/20">
-          <div className="flex justify-between items-center mb-1">
-            <span className="text-xs text-muted-foreground">코인 (투자 {Math.round(coinInvestAmount/finalCrypto*100 || 0)}% / 대기 {Math.round(cryptoStandby/finalCrypto*100 || 0)}%)</span>
-            <span className="text-xs font-semibold text-foreground">{fmtKrw(finalCrypto)}</span>
-          </div>
-          <div className="flex justify-between items-center mb-1">
-            <span className="text-xs text-muted-foreground">주식 (헷징 편입 +{fmtKrw(SAMSUNG_HEDGE_FIXED_VALUE)})</span>
-            <span className="text-xs font-semibold text-foreground">{fmtKrw(finalStock)}</span>
-          </div>
-          <div className="flex justify-between items-center mb-2 pb-2 border-b border-border">
-            <span className="text-xs text-muted-foreground">현금</span>
-            <span className="text-xs font-semibold text-foreground">{fmtKrw(rawCash)}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-bold text-foreground">총 자산</span>
-            <span className="text-sm font-bold text-blue-400">{fmtKrw(grandTotal)}</span>
+          <div className="fixed left-0 right-0 max-w-[390px] mx-auto pointer-events-none flex"
+            style={{ bottom: "calc(var(--bottomnav-h, 60px) + env(safe-area-inset-bottom) + 16px)", paddingLeft: 16, paddingRight: 16, zIndex: 40, justifyContent: "flex-end" }}>
+            <button onClick={() => setIsFormOpen(true)}
+              className="pointer-events-auto bg-foreground text-background px-5 py-3 rounded-full shadow-xl font-bold flex items-center gap-2 active:scale-95 transition-transform text-sm">
+              <Plus size={16} strokeWidth={3} />
+              새 기록 추가
+            </button>
           </div>
         </div>
+      ) : (
+        <div className="fixed inset-0 z-50 bg-background max-w-[390px] mx-auto flex flex-col shadow-2xl"
+             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+          
+          {/* 헤더 */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card shrink-0">
+            <h2 className="text-base font-bold text-foreground">자산 기록 입력</h2>
+            <button onClick={() => setIsFormOpen(false)} className="p-1 text-muted-foreground hover:text-foreground bg-muted rounded-full">
+              <X size={18} />
+            </button>
+          </div>
 
-        <div className="px-4 py-3">
-          <button
-            onClick={() => setModal(true)}
-            className="w-full py-3.5 rounded-xl bg-foreground text-background font-bold text-sm active:scale-[0.98] transition-transform"
-          >
-            기록 저장하기
-          </button>
-        </div>
-      </div>
-
-      {/* ── 모달 ── */}
-      {modal && (
-        <>
-          <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm" onClick={() => setModal(false)} />
-          <div className="fixed z-[60] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100vw-40px)] max-w-[340px] bg-card rounded-2xl border border-border p-6 shadow-2xl">
-            <h2 className="text-lg font-bold text-foreground mb-4 text-center">자산 기록 저장</h2>
-            <div className="space-y-2 mb-6">
-              <div className="flex justify-between"><span className="text-muted-foreground text-sm">코인</span><span className="text-foreground text-sm">{fmtKrw(finalCrypto)}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground text-sm">주식</span><span className="text-foreground text-sm">{fmtKrw(finalStock)}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground text-sm">현금</span><span className="text-foreground text-sm">{fmtKrw(rawCash)}</span></div>
-              <div className="pt-3 mt-3 border-t border-border flex justify-between">
-                <span className="text-foreground font-bold">총 자산</span>
-                <span className="text-blue-400 font-bold">{fmtKrw(grandTotal)}</span>
+          <div className="flex flex-col h-full overflow-hidden">
+            {/* 글로벌 설정 바 */}
+            <div className="flex px-4 py-3 gap-3 border-b border-border bg-muted/20 shrink-0">
+              <div className="flex flex-col flex-1 gap-1">
+                <span className="text-[10px] text-muted-foreground">USDT 가격</span>
+                <div className="flex items-center">
+                  <input inputMode="numeric" value={fmtNum(data.rates.usdt)} onChange={e => updateRates({ usdt: e.target.value })} className="w-full bg-transparent text-sm font-semibold outline-none tabular-nums" placeholder="0" />
+                  <span className="text-xs text-muted-foreground ml-1">원</span>
+                </div>
+              </div>
+              <div className="flex flex-col flex-1 gap-1 border-l border-border pl-3">
+                <span className="text-[10px] text-muted-foreground">달러 환율</span>
+                <div className="flex items-center">
+                  <input inputMode="numeric" value={fmtNum(data.rates.usd)} onChange={e => updateRates({ usd: e.target.value })} className="w-full bg-transparent text-sm font-semibold outline-none tabular-nums" placeholder="0" />
+                  <span className="text-xs text-muted-foreground ml-1">원</span>
+                </div>
+              </div>
+              <div className="flex flex-col flex-1 gap-1 border-l border-border pl-3">
+                <span className="text-[10px] text-muted-foreground flex items-center justify-between">
+                  삼성전자 주가 <button onClick={fetchRates} className="active:rotate-180 transition-transform"><RefreshCcw size={10} /></button>
+                </span>
+                <div className="flex items-center">
+                  <input inputMode="numeric" value={fmtNum(data.rates.samsungPrice)} onChange={e => updateRates({ samsungPrice: e.target.value })} className="w-full bg-transparent text-sm font-semibold outline-none tabular-nums" placeholder="0" />
+                  <span className="text-xs text-muted-foreground ml-1">원</span>
+                </div>
               </div>
             </div>
-            <div className="flex gap-3">
-              <button onClick={() => setModal(false)} className="flex-1 py-3 rounded-xl bg-muted text-foreground font-semibold text-sm">취소</button>
-              <button onClick={handleConfirm} disabled={saving} className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-semibold text-sm disabled:opacity-50">
-                {saving ? "저장 중..." : "저장하기"}
-              </button>
+
+            {/* 탭 바 */}
+            <div className="flex border-b border-border bg-card shrink-0 px-2">
+              {(["coin", "stock", "cash"] as const).map(t => {
+                const label = t === "coin" ? "코인" : t === "stock" ? "주식" : "현금";
+                return (
+                  <button key={t} onClick={() => setTab(t)}
+                    className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                      tab === t ? "text-foreground border-b-2 border-foreground" : "text-muted-foreground hover:text-foreground/80"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
+
+            {/* 입력 영역 */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+              
+              {/* 코인 탭 */}
+              {tab === "coin" && (
+                <div className="space-y-4 pb-10">
+                  <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                    <h3 className="text-sm font-bold text-foreground mb-2 flex justify-between">해외 거래소 <span className="text-xs font-normal text-muted-foreground">(USDT 입력)</span></h3>
+                    {OVERSEAS_EXCHANGES.map(ex => (
+                      <InputRow key={ex} label={ex} suffix="$" value={data.crypto.overseas[ex]} onChange={(v: string) => setData(p => ({ ...p, crypto: { ...p.crypto, overseas: { ...p.crypto.overseas, [ex]: v } } }))} />
+                    ))}
+                  </div>
+
+                  <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                    <h3 className="text-sm font-bold text-foreground mb-2 flex justify-between">국내 거래소 <span className="text-xs font-normal text-muted-foreground">(원화 입력)</span></h3>
+                    {DOMESTIC_EXCHANGES.map(ex => (
+                      <div key={ex} className="py-2 border-b border-white/5 last:border-0">
+                        <div className="text-xs text-muted-foreground mb-2">{ex}</div>
+                        <div className="flex items-center gap-4">
+                          <InputRow label="코인" value={data.crypto.domesticCoin[ex]} onChange={(v: string) => setData(p => ({ ...p, crypto: { ...p.crypto, domesticCoin: { ...p.crypto.domesticCoin, [ex]: v } } }))} />
+                          <InputRow label="예치금" value={data.crypto.domesticDeposit[ex]} onChange={(v: string) => setData(p => ({ ...p, crypto: { ...p.crypto, domesticDeposit: { ...p.crypto.domesticDeposit, [ex]: v } } }))} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                    <h3 className="text-sm font-bold text-foreground mb-2 flex justify-between">외화 잔고 <span className="text-xs font-normal text-muted-foreground">(USD 입력)</span></h3>
+                    {FOREIGN_CURRENCY_BANKS.map(ex => (
+                      <InputRow key={ex} label={ex} suffix="$" value={data.crypto.foreignCurrency[ex]} onChange={(v: string) => setData(p => ({ ...p, crypto: { ...p.crypto, foreignCurrency: { ...p.crypto.foreignCurrency, [ex]: v } } }))} />
+                    ))}
+                  </div>
+
+                  <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                    <h3 className="text-sm font-bold text-foreground mb-2 flex justify-between">선물 <span className="text-xs font-normal text-muted-foreground">(담보금 평가액)</span></h3>
+                    <InputRow label="국내 선물 (원화)" value={data.crypto.futuresDomestic} onChange={(v: string) => setData(p => ({ ...p, crypto: { ...p.crypto, futuresDomestic: v } }))} />
+                    <InputRow label="해외 선물 (USD)" suffix="$" value={data.crypto.futuresOverseas} onChange={(v: string) => setData(p => ({ ...p, crypto: { ...p.crypto, futuresOverseas: v } }))} />
+                  </div>
+                </div>
+              )}
+
+              {/* 주식 탭 */}
+              {tab === "stock" && (
+                <div className="space-y-4 pb-10">
+                  <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                    <InputRow label="해외주식 (USD)" suffix="$" value={data.stock.overseas} onChange={(v: string) => setData(p => ({ ...p, stock: { ...p.stock, overseas: v } }))} />
+                    <InputRow label="국내주식" value={data.stock.domestic} onChange={(v: string) => setData(p => ({ ...p, stock: { ...p.stock, domestic: v } }))} />
+                    <InputRow label="IRP" value={data.stock.irp} onChange={(v: string) => setData(p => ({ ...p, stock: { ...p.stock, irp: v } }))} />
+                    <InputRow label="개인연금" value={data.stock.pension} onChange={(v: string) => setData(p => ({ ...p, stock: { ...p.stock, pension: v } }))} />
+                  </div>
+                </div>
+              )}
+
+              {/* 현금 탭 */}
+              {tab === "cash" && (
+                <div className="space-y-4 pb-10">
+                  <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                    <h3 className="text-sm font-bold text-foreground mb-2">은행</h3>
+                    {BANKS.map(ex => (
+                      <InputRow key={ex} label={ex} value={data.cash.banks[ex]} onChange={(v: string) => setData(p => ({ ...p, cash: { ...p.cash, banks: { ...p.cash.banks, [ex]: v } } }))} />
+                    ))}
+                  </div>
+
+                  <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                    <h3 className="text-sm font-bold text-foreground mb-2">페이</h3>
+                    <div className="text-[10px] text-muted-foreground mb-3 leading-relaxed">
+                      서울페이 및 온누리상품권은 액면가를 입력하시면 자동으로 5% 할인된 현금 가치로 총합에 계산됩니다.
+                    </div>
+                    {PAYS.map(ex => (
+                      <InputRow key={ex} label={ex} value={data.cash.pays[ex]} onChange={(v: string) => setData(p => ({ ...p, cash: { ...p.cash, pays: { ...p.cash.pays, [ex]: v } } }))} />
+                    ))}
+                  </div>
+
+                  <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                    <h3 className="text-sm font-bold text-foreground mb-2">증권사 예수금</h3>
+                    {SECURITIES.map(ex => (
+                      <InputRow key={ex} label={ex} value={data.cash.securities[ex]} onChange={(v: string) => setData(p => ({ ...p, cash: { ...p.cash, securities: { ...p.cash.securities, [ex]: v } } }))} />
+                    ))}
+                  </div>
+
+                  <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                    <h3 className="text-sm font-bold text-foreground mb-2">기타</h3>
+                    <InputRow label="채무 (양수로 입력)" value={data.cash.debt["채무"]} onChange={(v: string) => setData(p => ({ ...p, cash: { ...p.cash, debt: { ...p.cash.debt, "채무": v } } }))} />
+                    {PHYSICALS.map(ex => (
+                      <InputRow key={ex} label={ex} value={data.cash.physical[ex]} onChange={(v: string) => setData(p => ({ ...p, cash: { ...p.cash, physical: { ...p.cash.physical, [ex]: v } } }))} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* ── 요약 및 등록 버튼 ── */}
+            <div className="shrink-0 bg-card border-t border-border">
+              <div className="px-4 py-3 bg-muted/20">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs text-muted-foreground">코인 (투자 {Math.round(coinInvestAmount/finalCrypto*100 || 0)}% / 대기 {Math.round(cryptoStandby/finalCrypto*100 || 0)}%)</span>
+                  <span className="text-xs font-semibold text-foreground">{fmtKrw(finalCrypto)}</span>
+                </div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs text-muted-foreground">주식 (헷징 편입 +{fmtKrw(SAMSUNG_HEDGE_FIXED_VALUE)})</span>
+                  <span className="text-xs font-semibold text-foreground">{fmtKrw(finalStock)}</span>
+                </div>
+                <div className="flex justify-between items-center mb-2 pb-2 border-b border-border">
+                  <span className="text-xs text-muted-foreground">현금</span>
+                  <span className="text-xs font-semibold text-foreground">{fmtKrw(rawCash)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-bold text-foreground">총 자산</span>
+                  <span className="text-sm font-bold text-blue-400">{fmtKrw(grandTotal)}</span>
+                </div>
+              </div>
+
+              <div className="px-4 py-3">
+                <button
+                  onClick={() => setModal(true)}
+                  className="w-full py-3.5 rounded-xl bg-foreground text-background font-bold text-sm active:scale-[0.98] transition-transform"
+                >
+                  기록 저장하기
+                </button>
+              </div>
+            </div>
+
+            {/* ── 확인 모달 ── */}
+            {modal && (
+              <>
+                <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm" onClick={() => setModal(false)} />
+                <div className="fixed z-[60] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100vw-40px)] max-w-[340px] bg-card rounded-2xl border border-border p-6 shadow-2xl">
+                  <h2 className="text-lg font-bold text-foreground mb-4 text-center">자산 기록 저장</h2>
+                  <div className="space-y-2 mb-6">
+                    <div className="flex justify-between"><span className="text-muted-foreground text-sm">코인</span><span className="text-foreground text-sm">{fmtKrw(finalCrypto)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground text-sm">주식</span><span className="text-foreground text-sm">{fmtKrw(finalStock)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground text-sm">현금</span><span className="text-foreground text-sm">{fmtKrw(rawCash)}</span></div>
+                    <div className="pt-3 mt-3 border-t border-border flex justify-between">
+                      <span className="text-foreground font-bold">총 자산</span>
+                      <span className="text-blue-400 font-bold">{fmtKrw(grandTotal)}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setModal(false)} className="flex-1 py-3 rounded-xl bg-muted text-foreground font-semibold text-sm">취소</button>
+                    <button onClick={handleConfirm} disabled={saving} className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-semibold text-sm disabled:opacity-50">
+                      {saving ? "저장 중..." : "저장하기"}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-        </>
+        </div>
       )}
-
     </div>
   );
 }
