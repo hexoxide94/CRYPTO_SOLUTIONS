@@ -37,6 +37,7 @@ interface SnapshotData {
     futuresOverseas: string;
   };
   stock: {
+    samsung: string;
     overseas: string;
     domestic: string;
     irp: string;
@@ -62,6 +63,7 @@ const INITIAL_DATA: SnapshotData = {
     futuresOverseas: "",
   },
   stock: {
+    samsung: "8480000",
     overseas: "",
     domestic: "",
     irp: "",
@@ -261,6 +263,7 @@ export default function AssetRecordPage() {
   rawStock += toNum(data.stock.domestic);
   rawStock += toNum(data.stock.irp);
   rawStock += toNum(data.stock.pension);
+  rawStock += toNum(data.stock.samsung);
 
   // ─── 삼성 숏 헷징 보정 ──────────────────────────────────────
   let finalCrypto = rawCrypto;
@@ -268,8 +271,7 @@ export default function AssetRecordPage() {
 
   if (samsungPrice > 0) {
     const samsungStockValue = samsungPrice * 53;
-    finalCrypto = rawCrypto + samsungStockValue - SAMSUNG_HEDGE_FIXED_VALUE;
-    finalStock = rawStock + SAMSUNG_HEDGE_FIXED_VALUE;
+    finalCrypto = rawCrypto + samsungStockValue - toNum(data.stock.samsung);
   }
 
   const cryptoStandby = finalCrypto - coinInvestAmount;
@@ -543,6 +545,7 @@ export default function AssetRecordPage() {
                 <div className="space-y-4 pb-10">
                   <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
                     <div className="space-y-1">
+                      <InputRow label="자사주" value={data.stock.samsung} onChange={(v: string) => setData(p => ({ ...p, stock: { ...p.stock, samsung: v } }))} />
                       <InputRow label="해외주식 (USD)" suffix="$" value={data.stock.overseas} onChange={(v: string) => setData(p => ({ ...p, stock: { ...p.stock, overseas: v } }))} />
                       <InputRow label="국내주식" value={data.stock.domestic} onChange={(v: string) => setData(p => ({ ...p, stock: { ...p.stock, domestic: v } }))} />
                       <InputRow label="IRP" value={data.stock.irp} onChange={(v: string) => setData(p => ({ ...p, stock: { ...p.stock, irp: v } }))} />
@@ -561,7 +564,7 @@ export default function AssetRecordPage() {
                   {cashTab === "pays" && (
                     <>
                       <div className="text-[10px] text-muted-foreground mb-2 px-1 leading-relaxed">
-                        서울페이 및 온누리상품권은 액면가를 입력하시면 자동으로 5% 할인된 현금 가치로 계산됩니다.
+                        서울페이 및 온누리상품권은 액면가를 입력 시 5% 할인된 현금 가치로 반영
                       </div>
                       <DynamicGroup type="pay" title="페이" keys={PAYS} dataObj={data.cash.pays}
                         updateFn={(k:string,v:string) => setData(p => ({ ...p, cash: { ...p.cash, pays: { ...p.cash.pays, [k]: v } } }))} />
@@ -596,7 +599,7 @@ export default function AssetRecordPage() {
                   <span className="text-xs font-semibold text-foreground">{fmtKrw(finalCrypto)}</span>
                 </div>
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-[11px] text-muted-foreground">주식 (헷징 편입 +{fmtKrw(SAMSUNG_HEDGE_FIXED_VALUE)})</span>
+                  <span className="text-[11px] text-muted-foreground">주식</span>
                   <span className="text-xs font-semibold text-foreground">{fmtKrw(finalStock)}</span>
                 </div>
                 <div className="flex justify-between items-center mb-2 pb-2 border-b border-border">
