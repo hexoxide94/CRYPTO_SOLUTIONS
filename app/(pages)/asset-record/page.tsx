@@ -446,7 +446,7 @@ export default function AssetRecordPage() {
           </div>
         </div>
       ) : (
-        <div className="fixed inset-0 z-50 bg-background w-full max-w-md mx-auto flex flex-col shadow-2xl"
+        <div className="fixed inset-0 z-[60] bg-background w-full max-w-md mx-auto flex flex-col shadow-2xl"
              style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
           
           <div className="flex flex-col h-full overflow-hidden">
