@@ -246,7 +246,15 @@ export default function AssetRecordPage() {
   }
 
   // ─── 컴포넌트 유틸 ────────────────────────────────────────────
-  const InputRow = ({ label, value, onChange, placeholder = "0", suffix = "원" }: any) => (
+  interface InputRowProps {
+    label: string;
+    value: string;
+    onChange: (val: string) => void;
+    placeholder?: string;
+    suffix?: string;
+  }
+
+  const InputRow = ({ label, value, onChange, placeholder = "0", suffix = "원" }: InputRowProps) => (
     <div className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
       <span className="text-xs text-muted-foreground w-28">{label}</span>
       <div className="flex items-center gap-1.5 flex-1 justify-end">
