@@ -7,7 +7,7 @@ import {
   ComposedChart, Scatter, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Plus, Pencil, Trash2, X, Settings, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Settings, ChevronDown, ChevronUp, Download } from "lucide-react";
 
 // ─── 상수 ──────────────────────────────────────────────────────
 const USDT_PER_DOMESTIC_CONTRACT  = 10_000;
@@ -478,6 +478,38 @@ export default function KimpPage() {
     fetchTrades();
   }
 
+  // ── 엑셀 다운로드 ────────────────────────────────────────────────
+  function handleDownloadExcel() {
+    if (!confirm("매매 내역을 엑셀(CSV)로 다운로드 하시겠습니까?")) return;
+    
+    const headers = ["거래일시", "상태", "국내원화가격", "해외달러가격", "김프(%)", "수량", "계약수", "선물종류"];
+    const csvRows = [headers.join(",")];
+    
+    for (const t of trades) {
+      const row = [
+        fmtTime(t.traded_at),
+        t.status === "open" ? "진입" : "청산",
+        t.sell_price_krw,
+        t.buy_price_usdt,
+        calcKimp(t.sell_price_krw, Number(t.buy_price_usdt)).toFixed(2),
+        t.amount,
+        t.detail_json?.contracts ?? 0,
+        t.detail_json?.futures_type === "overseas" ? "해외선물" : "국내선물"
+      ];
+      csvRows.push(row.join(","));
+    }
+    
+    const csvString = "\uFEFF" + csvRows.join("\n"); // Add BOM for Excel Korean support
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `매매내역_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   // ── 렌더 ────────────────────────────────────────────────────
   return (
     <div className="relative flex flex-col min-h-full">
@@ -659,13 +691,22 @@ export default function KimpPage() {
                     ))}
                   </div>
                 </div>
-                <button
-                  onClick={() => setListExpanded(v => !v)}
-                  className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                  title={listExpanded ? "목록 접기" : "목록 펼치기"}
-                >
-                  {listExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handleDownloadExcel}
+                    className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                    title="엑셀 다운로드"
+                  >
+                    <Download size={14} />
+                  </button>
+                  <button
+                    onClick={() => setListExpanded(v => !v)}
+                    className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                    title={listExpanded ? "목록 접기" : "목록 펼치기"}
+                  >
+                    {listExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-background/40 dark:bg-black/20 rounded-xl p-2 border border-white/5 flex flex-col items-center justify-between">
