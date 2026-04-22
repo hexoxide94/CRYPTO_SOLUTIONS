@@ -267,7 +267,7 @@ export default function AssetRecordPage() {
 
   // ─── 삼성 숏 헷징 보정 ──────────────────────────────────────
   let finalCrypto = rawCrypto;
-  let finalStock = rawStock;
+  const finalStock = rawStock;
 
   if (samsungPrice > 0) {
     const samsungStockValue = samsungPrice * 53;
