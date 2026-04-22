@@ -124,6 +124,83 @@ const InputRow = ({ label, value, onChange, placeholder = "0", suffix = "원" }:
   </div>
 );
 
+interface DynamicGroupProps {
+  type: string;
+  title?: string;
+  keys: string[];
+  dataObj: Record<string, string>;
+  updateFn: (key: string, val: string) => void;
+  suffix?: string;
+  visibleKeys: Record<string, boolean>;
+  showKey: (k: string) => void;
+}
+
+const DynamicGroup = ({ type, title, keys, dataObj, updateFn, suffix = "원", visibleKeys, showKey }: DynamicGroupProps) => {
+  const visible = keys.filter((k: string) => toNum(dataObj[k]) > 0 || visibleKeys[`${type}_${k}`]);
+  const hidden = keys.filter((k: string) => toNum(dataObj[k]) === 0 && !visibleKeys[`${type}_${k}`]);
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
+      {title && <h3 className="text-sm font-bold text-foreground mb-3">{title}</h3>}
+      <div className="space-y-1">
+        {visible.map((k: string) => (
+          <InputRow key={k} label={k} suffix={suffix} value={dataObj[k]} onChange={(v) => updateFn(k, v)} />
+        ))}
+      </div>
+      {hidden.length > 0 && (
+        <div className="mt-3 pt-2 border-t border-white/5 text-right">
+          <select
+            className="bg-muted text-xs text-muted-foreground px-2 py-1.5 rounded-lg outline-none cursor-pointer"
+            value=""
+            onChange={e => { if (e.target.value) showKey(`${type}_${e.target.value}`) }}
+          >
+            <option value="" disabled>+ 항목 추가</option>
+            {hidden.map((k: string) => <option key={k} value={k}>{k}</option>)}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface DomesticGroupProps {
+  keys: string[];
+  totalObj: Record<string, string>;
+  depObj: Record<string, string>;
+  updateTotal: (k: string, v: string) => void;
+  updateDep: (k: string, v: string) => void;
+  visibleKeys: Record<string, boolean>;
+  showKey: (k: string) => void;
+}
+
+const DomesticGroup = ({ keys, totalObj, depObj, updateTotal, updateDep, visibleKeys, showKey }: DomesticGroupProps) => {
+  const visible = keys.filter(k => toNum(totalObj[k]) > 0 || toNum(depObj[k]) > 0 || visibleKeys[`dom_${k}`]);
+  const hidden = keys.filter(k => toNum(totalObj[k]) === 0 && toNum(depObj[k]) === 0 && !visibleKeys[`dom_${k}`]);
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
+      <h3 className="text-sm font-bold text-foreground mb-3 flex justify-between">국내 거래소</h3>
+      {visible.map(k => (
+        <div key={k} className="py-2 mb-2 border-b border-white/5 last:border-0 last:mb-0">
+          <div className="text-xs font-semibold text-muted-foreground mb-2">{k}</div>
+          <div className="flex flex-col gap-1 pl-2">
+            <InputRow label="총액" value={totalObj[k]} onChange={v => updateTotal(k, v)} />
+            <InputRow label="예치금" value={depObj[k]} onChange={v => updateDep(k, v)} />
+          </div>
+        </div>
+      ))}
+      {hidden.length > 0 && (
+        <div className="mt-3 pt-2 border-t border-white/5 text-right">
+          <select className="bg-muted text-xs text-muted-foreground px-2 py-1.5 rounded-lg outline-none cursor-pointer" value="" onChange={e => { if (e.target.value) showKey(`dom_${e.target.value}`) }}>
+            <option value="" disabled>+ 거래소 추가</option>
+            {hidden.map(k => <option key={k} value={k}>{k}</option>)}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ═══════════════════════════════════════════════════════════════
 export default function AssetRecordPage() {
   const { usdt } = useUsdtPrices();
@@ -320,74 +397,6 @@ export default function AssetRecordPage() {
   // ─── 다이나믹 렌더 컴포넌트 ──────────────────────────────────
   const showKey = (k: string) => setVisibleKeys(p => ({ ...p, [k]: true }));
 
-  interface DynamicGroupProps {
-    type: string;
-    title?: string;
-    keys: string[];
-    dataObj: Record<string, string>;
-    updateFn: (key: string, val: string) => void;
-    suffix?: string;
-  }
-
-  const DynamicGroup = ({ type, title, keys, dataObj, updateFn, suffix = "원" }: DynamicGroupProps) => {
-    const visible = keys.filter((k: string) => toNum(dataObj[k]) > 0 || visibleKeys[`${type}_${k}`]);
-    const hidden = keys.filter((k: string) => toNum(dataObj[k]) === 0 && !visibleKeys[`${type}_${k}`]);
-
-    return (
-      <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
-        {title && <h3 className="text-sm font-bold text-foreground mb-3">{title}</h3>}
-        <div className="space-y-1">
-          {visible.map((k: string) => (
-            <InputRow key={k} label={k} suffix={suffix} value={dataObj[k]} onChange={(v) => updateFn(k, v)} />
-          ))}
-        </div>
-        {hidden.length > 0 && (
-          <div className="mt-3 pt-2 border-t border-white/5 text-right">
-            <select
-              className="bg-muted text-xs text-muted-foreground px-2 py-1.5 rounded-lg outline-none cursor-pointer"
-              value=""
-              onChange={e => { if (e.target.value) showKey(`${type}_${e.target.value}`) }}
-            >
-              <option value="" disabled>+ 항목 추가</option>
-              {hidden.map((k: string) => <option key={k} value={k}>{k}</option>)}
-            </select>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const DomesticGroup = () => {
-    const keys = DOMESTIC_EXCHANGES;
-    const totalObj = data.crypto.domesticTotal;
-    const depObj = data.crypto.domesticDeposit;
-    const visible = keys.filter(k => toNum(totalObj[k]) > 0 || toNum(depObj[k]) > 0 || visibleKeys[`dom_${k}`]);
-    const hidden = keys.filter(k => toNum(totalObj[k]) === 0 && toNum(depObj[k]) === 0 && !visibleKeys[`dom_${k}`]);
-
-    return (
-      <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
-        <h3 className="text-sm font-bold text-foreground mb-3 flex justify-between">국내 거래소</h3>
-        {visible.map(k => (
-          <div key={k} className="py-2 mb-2 border-b border-white/5 last:border-0 last:mb-0">
-            <div className="text-xs font-semibold text-muted-foreground mb-2">{k}</div>
-            <div className="flex flex-col gap-1 pl-2">
-              <InputRow label="총액" value={totalObj[k]} onChange={v => setData(p => ({ ...p, crypto: { ...p.crypto, domesticTotal: { ...p.crypto.domesticTotal, [k]: v } } }))} />
-              <InputRow label="예치금" value={depObj[k]} onChange={v => setData(p => ({ ...p, crypto: { ...p.crypto, domesticDeposit: { ...p.crypto.domesticDeposit, [k]: v } } }))} />
-            </div>
-          </div>
-        ))}
-        {hidden.length > 0 && (
-          <div className="mt-3 pt-2 border-t border-white/5 text-right">
-            <select className="bg-muted text-xs text-muted-foreground px-2 py-1.5 rounded-lg outline-none cursor-pointer" value="" onChange={e => { if (e.target.value) showKey(`dom_${e.target.value}`) }}>
-              <option value="" disabled>+ 거래소 추가</option>
-              {hidden.map(k => <option key={k} value={k}>{k}</option>)}
-            </select>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   // ─── 화면 렌더링 ────────────────────────────────────────────
   return (
     <div className="relative flex flex-col min-h-full">
@@ -522,12 +531,12 @@ export default function AssetRecordPage() {
                 <div className="space-y-4 pb-10">
                   {coinTab === "overseas" && (
                     <DynamicGroup type="ovs" title="해외 거래소 (USDT)" keys={OVERSEAS_EXCHANGES} dataObj={data.crypto.overseas} suffix="$"
-                      updateFn={(k:string,v:string) => setData(p => ({ ...p, crypto: { ...p.crypto, overseas: { ...p.crypto.overseas, [k]: v } } }))} />
+                      updateFn={(k:string,v:string) => setData(p => ({ ...p, crypto: { ...p.crypto, overseas: { ...p.crypto.overseas, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />
                   )}
-                  {coinTab === "domestic" && <DomesticGroup />}
+                  {coinTab === "domestic" && <DomesticGroup keys={DOMESTIC_EXCHANGES} totalObj={data.crypto.domesticTotal} depObj={data.crypto.domesticDeposit} updateTotal={(k,v) => setData(p => ({ ...p, crypto: { ...p.crypto, domesticTotal: { ...p.crypto.domesticTotal, [k]: v } } }))} updateDep={(k,v) => setData(p => ({ ...p, crypto: { ...p.crypto, domesticDeposit: { ...p.crypto.domesticDeposit, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />}
                   {coinTab === "foreign" && (
                     <DynamicGroup type="for" title="외화 잔고 (USD)" keys={FOREIGN_CURRENCY_BANKS} dataObj={data.crypto.foreignCurrency} suffix="$"
-                      updateFn={(k:string,v:string) => setData(p => ({ ...p, crypto: { ...p.crypto, foreignCurrency: { ...p.crypto.foreignCurrency, [k]: v } } }))} />
+                      updateFn={(k:string,v:string) => setData(p => ({ ...p, crypto: { ...p.crypto, foreignCurrency: { ...p.crypto.foreignCurrency, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />
                   )}
                   {coinTab === "futures" && (
                     <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
@@ -559,7 +568,7 @@ export default function AssetRecordPage() {
                 <div className="space-y-4 pb-10">
                   {cashTab === "banks" && (
                     <DynamicGroup type="bnk" title="은행" keys={BANKS} dataObj={data.cash.banks}
-                      updateFn={(k:string,v:string) => setData(p => ({ ...p, cash: { ...p.cash, banks: { ...p.cash.banks, [k]: v } } }))} />
+                      updateFn={(k:string,v:string) => setData(p => ({ ...p, cash: { ...p.cash, banks: { ...p.cash.banks, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />
                   )}
                   {cashTab === "pays" && (
                     <>
@@ -567,12 +576,12 @@ export default function AssetRecordPage() {
                         서울페이 및 온누리상품권은 액면가를 입력 시 5% 할인된 현금 가치로 반영
                       </div>
                       <DynamicGroup type="pay" title="페이" keys={PAYS} dataObj={data.cash.pays}
-                        updateFn={(k:string,v:string) => setData(p => ({ ...p, cash: { ...p.cash, pays: { ...p.cash.pays, [k]: v } } }))} />
+                        updateFn={(k:string,v:string) => setData(p => ({ ...p, cash: { ...p.cash, pays: { ...p.cash.pays, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />
                     </>
                   )}
                   {cashTab === "securities" && (
                     <DynamicGroup type="sec" title="증권사 예수금" keys={SECURITIES} dataObj={data.cash.securities}
-                      updateFn={(k:string,v:string) => setData(p => ({ ...p, cash: { ...p.cash, securities: { ...p.cash.securities, [k]: v } } }))} />
+                      updateFn={(k:string,v:string) => setData(p => ({ ...p, cash: { ...p.cash, securities: { ...p.cash.securities, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />
                   )}
                   {cashTab === "etc" && (
                     <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
@@ -582,7 +591,7 @@ export default function AssetRecordPage() {
                       </div>
                       <div className="mt-4 pt-3 border-t border-white/5">
                         <DynamicGroup type="phy" title="실물 자산" keys={PHYSICALS} dataObj={data.cash.physical}
-                          updateFn={(k:string,v:string) => setData(p => ({ ...p, cash: { ...p.cash, physical: { ...p.cash.physical, [k]: v } } }))} />
+                          updateFn={(k:string,v:string) => setData(p => ({ ...p, cash: { ...p.cash, physical: { ...p.cash.physical, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />
                       </div>
                     </div>
                   )}
