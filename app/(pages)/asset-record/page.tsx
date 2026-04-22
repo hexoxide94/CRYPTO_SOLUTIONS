@@ -84,7 +84,6 @@ function fmtKrw(n: number): string {
   const won = n % 10_000;
   if (eok > 0 && man > 0) return `${eok}억 ${man.toLocaleString()}만원`;
   if (eok > 0) return `${eok}억원`;
-  if (man > 0 && won > 0) return `${man.toLocaleString()}만 ${won.toLocaleString()}원`;
   if (man > 0) return `${man.toLocaleString()}만원`;
   return `${n.toLocaleString()}원`;
 }
