@@ -782,7 +782,7 @@ export default function KimpPage() {
 
       {/* 플로팅 버튼 */}
       <div
-        className="fixed left-0 right-0 max-w-[390px] mx-auto pointer-events-none flex"
+        className="fixed left-0 right-0 w-full max-w-md mx-auto pointer-events-none flex"
         style={{
           bottom: "calc(var(--bottomnav-h, 60px) + env(safe-area-inset-bottom) + 16px)",
           paddingLeft: 16, paddingRight: 16,
@@ -811,7 +811,7 @@ export default function KimpPage() {
       {sheetOpen && <div className="fixed inset-0 z-[60] bg-black/50" onClick={closeSheet} />}
 
       <div
-        className={`fixed inset-x-0 bottom-0 z-[70] max-w-[390px] mx-auto bg-card rounded-t-2xl border-t border-x border-border transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-x-0 bottom-0 z-[70] w-full max-w-md mx-auto bg-card rounded-t-2xl border-t border-x border-border transition-transform duration-300 ease-in-out ${
           sheetOpen ? "translate-y-0" : "translate-y-full"
         }`}
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}

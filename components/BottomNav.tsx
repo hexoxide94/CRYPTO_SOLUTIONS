@@ -17,7 +17,7 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-t border-white/5 max-w-[390px] mx-auto w-full"
+      className="fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-t border-white/5 w-full max-w-md mx-auto w-full"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <ul className="flex" style={{ height: "var(--bottomnav-h, 60px)" }}>

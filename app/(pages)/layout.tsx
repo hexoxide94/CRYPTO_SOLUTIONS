@@ -9,7 +9,7 @@ export default function PagesLayout({
 }) {
   return (
     <UsdtProvider>
-    <div className="relative min-h-screen max-w-[390px] mx-auto">
+    <div className="relative min-h-screen w-full max-w-md mx-auto">
       <TopBar />
       <main
         className="min-h-screen bg-background"

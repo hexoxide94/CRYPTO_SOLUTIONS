@@ -427,7 +427,7 @@ export default function AssetRecordPage() {
             ))
           )}
 
-          <div className="fixed left-0 right-0 max-w-[390px] mx-auto pointer-events-none flex"
+          <div className="fixed left-0 right-0 w-full max-w-md mx-auto pointer-events-none flex"
             style={{ bottom: "calc(var(--bottomnav-h, 60px) + env(safe-area-inset-bottom) + 16px)", paddingLeft: 16, paddingRight: 16, zIndex: 40, justifyContent: "flex-end" }}>
             <button onClick={() => setIsFormOpen(true)}
               className="pointer-events-auto bg-foreground text-background px-5 py-3 rounded-full shadow-xl font-bold flex items-center gap-2 active:scale-95 transition-transform text-sm">
@@ -437,7 +437,7 @@ export default function AssetRecordPage() {
           </div>
         </div>
       ) : (
-        <div className="fixed inset-0 z-50 bg-background max-w-[390px] mx-auto flex flex-col shadow-2xl"
+        <div className="fixed inset-0 z-50 bg-background w-full max-w-md mx-auto flex flex-col shadow-2xl"
              style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
           
           <div className="flex flex-col h-full overflow-hidden">

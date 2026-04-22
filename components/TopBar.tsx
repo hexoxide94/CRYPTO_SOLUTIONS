@@ -147,7 +147,7 @@ export default function TopBar() {
   // ── 렌더 ────────────────────────────────────────────────────────
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-50 bg-card border-b border-border flex items-center px-3 max-w-[390px] mx-auto w-full"
+      className="fixed top-0 left-0 right-0 z-50 bg-card border-b border-border flex items-center px-3 w-full max-w-md mx-auto w-full"
       style={{ height: "var(--topbar-h, 48px)" }}
     >
       <div className="flex items-center gap-2 flex-1 min-w-0">
