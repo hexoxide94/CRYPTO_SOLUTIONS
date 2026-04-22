@@ -43,7 +43,7 @@ interface SnapshotData {
     irp: string;
     pension: string;
   };
-  calculated?: any;
+  calculated?: Record<string, number>;
   kimp?: number;
 }
 
