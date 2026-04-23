@@ -17,6 +17,7 @@ export default function TopBar() {
   const [mounted, setMounted]     = useState(false);
   const { usdt, setUsdt }         = useUsdtPrices();
   const [usdKrw, setUsdKrw]       = useState<number | null>(null);
+  const [usdIcon, setUsdIcon]     = useState<string>("");
   const [usdStatus, setUsdStatus] = useState<"loading" | "ok" | "error">("loading");
 
   const wsRef      = useRef<WebSocket | null>(null);
@@ -32,6 +33,7 @@ export default function TopBar() {
       const data = await res.json();
       if (typeof data?.rate === "number") {
         setUsdKrw(data.rate);
+        setUsdIcon(data.icon || "");
         setUsdStatus("ok");
       } else {
         setUsdStatus("error");
@@ -180,7 +182,7 @@ export default function TopBar() {
 
         {/* USD/KRW */}
         <div className="flex items-baseline gap-0.5 shrink-0">
-          <span className="text-[10px] text-muted-foreground font-medium leading-none">USD</span>
+          <span className="text-[10px] text-muted-foreground font-medium leading-none">USD {usdIcon}</span>
           <span className="text-[11px] font-bold leading-none tabular-nums text-foreground">
             {usdStatus === "loading"
               ? "---"
