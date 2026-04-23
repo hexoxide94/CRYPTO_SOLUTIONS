@@ -297,8 +297,8 @@ export default function AssetRecordPage() {
       if (r1.rate) updateRates({ usd: String(Math.floor(r1.rate)) });
       const r2 = await fetch('/api/stock-price?symbol=005930.KS').then(res => res.json());
       if (r2.price) updateRates({ samsungPrice: String(r2.price) });
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // ignore
     }
   }, []);
 

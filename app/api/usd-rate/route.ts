@@ -13,7 +13,6 @@ async function fetchToken(): Promise<string | null> {
   const appkey = process.env.KIS_APP_KEY;
   const appsecret = process.env.KIS_APP_SECRET;
   if (!appkey || !appsecret) {
-    console.error("[usd-rate] KIS_APP_KEY 또는 KIS_APP_SECRET 없음");
     return null;
   }
 
@@ -63,8 +62,6 @@ async function fetchKisRate(token: string): Promise<number | null> {
   const appkey = process.env.KIS_APP_KEY!;
   const appsecret = process.env.KIS_APP_SECRET!;
 
-  // 달러 선물(A75605)은 상품선물(CF) 마켓 코드를 사용하며, 
-  // 야간에도 동일한 시세 조회 TR(FHMIF10000000)을 통해 현재가를 가져올 수 있습니다.
   const url = new URL("https://openapi.koreainvestment.com:9443/uapi/domestic-futureoption/v1/quotations/inquire-price");
   url.searchParams.set("FID_COND_MRKT_DIV_CODE", "CF");
   url.searchParams.set("FID_INPUT_ISCD", "A75605");
@@ -84,7 +81,6 @@ async function fetchKisRate(token: string): Promise<number | null> {
     const data = await res.json();
 
     if (data?.rt_cd !== "0") {
-      console.warn(`[usd-rate] KIS 응답 오류: ${data?.msg1}`);
       return null;
     }
 
