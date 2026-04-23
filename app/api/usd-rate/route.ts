@@ -33,8 +33,8 @@ async function fetchToken(): Promise<string | null> {
     cachedToken = token;
     tokenExpiresAt = Date.now() + 23 * 60 * 60 * 1000;
     return token;
-  } catch (e) {
-    console.error("[usd-rate] 토큰 발급 예외:", e);
+  } catch (err) {
+    console.error("[usd-rate] 토큰 발급 예외:", err);
     return null;
   }
 }
@@ -158,8 +158,7 @@ async function fetchKisRate(token: string): Promise<{ rate: number; icon: string
     }
 
     return { rate: parseFloat(price), icon };
-  } catch (e) {
-    console.error("[usd-rate] KIS 조회 예외:", e);
+  } catch {
     return null;
   }
 }
@@ -170,7 +169,7 @@ async function fetchFallbackRate(): Promise<number | null> {
     const res = await fetch("https://open.er-api.com/v6/latest/USD", { cache: "no-store" });
     const data = await res.json();
     return data?.rates?.KRW ?? null;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
