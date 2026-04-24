@@ -43,18 +43,28 @@ async function getToken(): Promise<string | null> {
 }
 
 // ─── 아이콘 및 상태 판별 ───────────────────────────────────────────────
-function getMarketIcon(): string {
+function getMarketSession() {
   const now = new Date();
   const kstOffset = 9 * 60;
   const kstNow = new Date(now.getTime() + kstOffset * 60_000);
-  const kstMin = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes();
+  const hour = kstNow.getUTCHours();
+  const min = kstNow.getUTCMinutes();
+  const totalMin = hour * 60 + min;
   
-  // 주간: 08:45 ~ 18:00 (☀️)
-  if (kstMin >= 8 * 60 + 45 && kstMin < 18 * 60) {
-    return "☀️";
+  // 주간 장중: 08:45 ~ 15:45
+  if (totalMin >= 8 * 60 + 45 && totalMin < 15 * 60 + 45) {
+    return { icon: "☀️", session: "DAY_ACTIVE" };
   }
-  // 그 외 야간: (🌙)
-  return "🌙";
+  // 주간 정산: 15:45 ~ 18:00
+  if (totalMin >= 15 * 60 + 45 && totalMin < 18 * 60) {
+    return { icon: "☀️", session: "DAY_CLOSE" };
+  }
+  // 야간 장중: 18:00 ~ 06:00 (다음날)
+  if (totalMin >= 18 * 60 || totalMin < 6 * 60) {
+    return { icon: "🌙", session: "NIGHT_ACTIVE" };
+  }
+  // 야간 정산: 06:00 ~ 08:45
+  return { icon: "🌙", session: "NIGHT_CLOSE" };
 }
 
 // ─── KIS 달러선물 조회 ───────────────────────────────────────────────
@@ -62,6 +72,7 @@ async function fetchKisRate(token: string): Promise<number | null> {
   const appkey = process.env.KIS_APP_KEY!;
   const appsecret = process.env.KIS_APP_SECRET!;
 
+  // 주간/야간 모두 A75605 (달러선물 5월물) 코드를 사용합니다.
   const url = new URL("https://openapi.koreainvestment.com:9443/uapi/domestic-futureoption/v1/quotations/inquire-price");
   url.searchParams.set("FID_COND_MRKT_DIV_CODE", "CF");
   url.searchParams.set("FID_INPUT_ISCD", "A75605");
@@ -69,26 +80,29 @@ async function fetchKisRate(token: string): Promise<number | null> {
   try {
     const res = await fetch(url.toString(), {
       headers: {
-        authorization: `Bearer ${token}`,
-        appkey,
-        appsecret,
-        tr_id: "FHMIF10000000",
-        custtype: "P",
-        "Content-Type": "application/json",
+        "content-type": "application/json",
+        "authorization": `Bearer ${token}`,
+        "appkey": appkey,
+        "appsecret": appsecret,
+        "tr_id": "FHMIF10000000",
+        "custtype": "P",
       },
       cache: "no-store",
     });
     const data = await res.json();
 
     if (data?.rt_cd !== "0") {
+      console.error("[KIS API Error]", data?.msg1);
       return null;
     }
 
+    // futs_prpr: 현재가
     const price = data?.output1?.futs_prpr;
     if (!price) return null;
 
     return parseFloat(price);
-  } catch {
+  } catch (error) {
+    console.error("[KIS Fetch Error]", error);
     return null;
   }
 }
@@ -99,14 +113,15 @@ async function fetchFallbackRate(): Promise<number | null> {
     const res = await fetch("https://open.er-api.com/v6/latest/USD", { cache: "no-store" });
     const data = await res.json();
     return data?.rates?.KRW ?? null;
-  } catch {
+  } catch (error) {
+    console.error("[Fallback Fetch Error]", error);
     return null;
   }
 }
 
 // ─── Route Handler ───────────────────────────────────────────────────
 export async function GET() {
-  const icon = getMarketIcon();
+  const { icon, session } = getMarketSession();
   
   const token = await getToken();
   if (token) {
@@ -117,12 +132,14 @@ export async function GET() {
       return NextResponse.json({ 
         rate: kisRate, 
         icon: icon,
-        source: "kis", 
+        source: "kis",
+        session: session,
         timestamp: new Date().toISOString() 
       });
     }
   }
 
+  // KIS 실패 시 폴백
   const fallback = await fetchFallbackRate();
   if (fallback !== null) {
     lastRate = fallback;
@@ -130,15 +147,18 @@ export async function GET() {
     return NextResponse.json({ 
       rate: fallback, 
       icon: "⚠️",
-      source: "fallback"
+      source: "fallback",
+      session: session
     });
   }
 
+  // 캐시된 마지막 값 반환
   if (lastRate !== null) {
     return NextResponse.json({ 
       rate: lastRate, 
       icon: lastIcon,
-      source: "cached"
+      source: "cached",
+      session: session
     });
   }
 
