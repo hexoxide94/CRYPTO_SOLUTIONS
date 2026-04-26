@@ -6,8 +6,8 @@ import { useUsdtPrices } from "@/lib/usdt-context";
 import { RefreshCcw, Plus, X, Trash2, Edit2 } from "lucide-react";
 
 // ─── 상수 ──────────────────────────────────────────────────────
-const BANKS = ["하나은행", "국민은행", "신한은행", "카카오뱅크", "케이뱅크", "토스뱅크", "SC제일은행", "우리은행", "우리종금", "농협"];
-const PAYS = ["하나은행청약", "카카오페이", "서울페이", "온누리상품권"];
+const BANKS = ["하나은행", "하나은행청약", "국민은행", "신한은행", "카카오뱅크", "케이뱅크", "토스뱅크", "SC제일은행", "우리은행", "우리종금", "농협"];
+const PAYS = ["카카오페이", "서울페이", "온누리상품권"];
 const SECURITIES = ["하나증권", "신한금융투자", "한국투자증권", "키움증권", "유안타증권", "대신증권", "KB증권", "토스증권", "나무증권", "삼성증권", "미래에셋증권", "유진투자증권", "메리츠증권"];
 const PHYSICALS = ["금", "은"];
 
@@ -24,9 +24,8 @@ interface SnapshotData {
   cash: {
     banks: Record<string, string>;
     pays: Record<string, string>;
-    debt: Record<string, string>;
     securities: Record<string, string>;
-    physical: Record<string, string>;
+    etc: Record<string, string>; // Unified physical and debt
   };
   crypto: {
     overseas: Record<string, string>;
@@ -52,9 +51,8 @@ const INITIAL_DATA: SnapshotData = {
   cash: {
     banks: Object.fromEntries(BANKS.map(k => [k, ""])),
     pays: Object.fromEntries(PAYS.map(k => [k, ""])),
-    debt: { "채무": "" },
     securities: Object.fromEntries(SECURITIES.map(k => [k, ""])),
-    physical: Object.fromEntries(PHYSICALS.map(k => [k, ""])),
+    etc: { "채무": "", ...Object.fromEntries(PHYSICALS.map(k => [k, ""])) },
   },
   crypto: {
     overseas: Object.fromEntries(OVERSEAS_EXCHANGES.map(k => [k, ""])),
@@ -110,7 +108,7 @@ interface InputRowProps {
 
 const InputRow = ({ label, value, onChange, placeholder = "0", suffix = "원" }: InputRowProps) => (
   <div className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
-    <span className="text-xs text-muted-foreground w-28">{label}</span>
+    <span className="text-xs text-muted-foreground w-28 truncate pr-2" title={label}>{label}</span>
     <div className="flex items-center gap-1.5 flex-1 justify-end">
       <input
         inputMode="numeric"
@@ -136,7 +134,11 @@ interface DynamicGroupProps {
 }
 
 const DynamicGroup = ({ type, title, keys, dataObj, updateFn, suffix = "원", visibleKeys, showKey }: DynamicGroupProps) => {
-  const visible = keys.filter((k: string) => toNum(dataObj[k]) > 0 || visibleKeys[`${type}_${k}`]);
+  const [isCustomMode, setIsCustomMode] = useState(false);
+  const [customKey, setCustomKey] = useState("");
+
+  const allKeys = Array.from(new Set([...keys, ...Object.keys(dataObj)]));
+  const visible = allKeys.filter((k: string) => toNum(dataObj[k]) > 0 || visibleKeys[`${type}_${k}`] || (!keys.includes(k) && dataObj[k] !== undefined));
   const hidden = keys.filter((k: string) => toNum(dataObj[k]) === 0 && !visibleKeys[`${type}_${k}`]);
 
   return (
@@ -147,18 +149,55 @@ const DynamicGroup = ({ type, title, keys, dataObj, updateFn, suffix = "원", vi
           <InputRow key={k} label={k} suffix={suffix} value={dataObj[k]} onChange={(v) => updateFn(k, v)} />
         ))}
       </div>
-      {hidden.length > 0 && (
-        <div className="mt-3 pt-2 border-t border-white/5 text-right">
+      <div className="mt-3 pt-2 border-t border-white/5 flex justify-end items-center gap-2">
+        {isCustomMode ? (
+          <div className="flex items-center gap-1.5 w-full">
+            <input
+              autoFocus
+              className="flex-1 bg-muted text-xs text-foreground px-2 py-1.5 rounded-lg outline-none border border-white/5"
+              placeholder="항목 이름"
+              value={customKey}
+              onChange={e => setCustomKey(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && customKey.trim()) {
+                  updateFn(customKey.trim(), "0");
+                  setCustomKey("");
+                  setIsCustomMode(false);
+                }
+              }}
+            />
+            <button 
+              onClick={() => {
+                if (customKey.trim()) {
+                  updateFn(customKey.trim(), "0");
+                  setCustomKey("");
+                  setIsCustomMode(false);
+                }
+              }}
+              className="bg-foreground text-background text-[10px] font-bold px-2.5 py-1.5 rounded-lg"
+            >
+              추가
+            </button>
+            <button onClick={() => setIsCustomMode(false)} className="text-[10px] text-muted-foreground px-1">취소</button>
+          </div>
+        ) : (
           <select
             className="bg-muted text-xs text-muted-foreground px-2 py-1.5 rounded-lg outline-none cursor-pointer"
             value=""
-            onChange={e => { if (e.target.value) showKey(`${type}_${e.target.value}`) }}
+            onChange={e => {
+              if (e.target.value === "__custom__") {
+                setIsCustomMode(true);
+              } else if (e.target.value) {
+                showKey(`${type}_${e.target.value}`);
+              }
+            }}
           >
             <option value="" disabled>+ 항목 추가</option>
             {hidden.map((k: string) => <option key={k} value={k}>{k}</option>)}
+            <option value="__custom__">+ 직접 입력</option>
           </select>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
@@ -236,7 +275,16 @@ export default function AssetRecordPage() {
   }
 
   function handleAddNew() {
-    setData(INITIAL_DATA);
+    if (snapshots.length > 0 && snapshots[0].detail_json) {
+      // Load previous record but reset rates
+      setData({ 
+        ...INITIAL_DATA, 
+        ...snapshots[0].detail_json, 
+        rates: INITIAL_DATA.rates 
+      });
+    } else {
+      setData(INITIAL_DATA);
+    }
     setEditingId(null);
     setIsFormOpen(true);
   }
@@ -252,9 +300,8 @@ export default function AssetRecordPage() {
           cash: {
             banks: { ...INITIAL_DATA.cash.banks, ...parsed.cash?.banks },
             pays: { ...INITIAL_DATA.cash.pays, ...parsed.cash?.pays },
-            debt: { ...INITIAL_DATA.cash.debt, ...parsed.cash?.debt },
             securities: { ...INITIAL_DATA.cash.securities, ...parsed.cash?.securities },
-            physical: { ...INITIAL_DATA.cash.physical, ...parsed.cash?.physical },
+            etc: { ...INITIAL_DATA.cash.etc, ...parsed.cash?.etc, ...(parsed.cash?.debt && parsed.cash?.physical ? { ...parsed.cash.debt, ...parsed.cash.physical } : {}) },
           },
           crypto: {
             overseas: { ...INITIAL_DATA.crypto.overseas, ...parsed.crypto?.overseas },
@@ -322,12 +369,15 @@ export default function AssetRecordPage() {
   let rawCash = 0;
   Object.values(data.cash.banks).forEach(v => rawCash += toNum(v));
   Object.values(data.cash.securities).forEach(v => rawCash += toNum(v));
-  Object.values(data.cash.physical).forEach(v => rawCash += toNum(v));
   Object.entries(data.cash.pays).forEach(([k, v]) => {
     if (k === "서울페이" || k === "온누리상품권") rawCash += toNum(v) * 0.95;
     else rawCash += toNum(v);
   });
-  rawCash -= toNum(data.cash.debt["채무"]);
+  // Subtract debt, add physical assets from the unified etc group
+  Object.entries(data.cash.etc).forEach(([k, v]) => {
+    if (k === "채무") rawCash -= toNum(v);
+    else rawCash += toNum(v);
+  });
 
   let rawCrypto = 0;
   let coinInvestAmount = 0;
@@ -495,30 +545,31 @@ export default function AssetRecordPage() {
              style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
           
           <div className="flex flex-col h-full overflow-hidden">
-            {/* 상단 콤팩트 헤더 */}
-            <div className="flex flex-col border-b border-border bg-card shrink-0 px-3 py-2 pt-3">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-bold text-foreground">새 자산 기록</h2>
-                <button onClick={() => { setIsFormOpen(false); setEditingId(null); }} className="p-1 bg-muted rounded-full text-muted-foreground hover:text-foreground">
-                  <X size={14} />
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <div className="flex flex-1 items-center justify-between bg-muted/30 px-2 py-1.5 rounded-lg border border-white/5">
-                  <span className="text-[10px] text-muted-foreground">USDT</span>
-                  <input inputMode="numeric" value={fmtNum(data.rates.usdt)} onChange={e => updateRates({usdt: e.target.value})} className="w-12 bg-transparent text-xs font-semibold outline-none text-right tabular-nums" placeholder="0" />
-                </div>
-                <div className="flex flex-1 items-center justify-between bg-muted/30 px-2 py-1.5 rounded-lg border border-white/5">
-                  <span className="text-[10px] text-muted-foreground">USD</span>
-                  <input inputMode="numeric" value={fmtNum(data.rates.usd)} onChange={e => updateRates({usd: e.target.value})} className="w-12 bg-transparent text-xs font-semibold outline-none text-right tabular-nums" placeholder="0" />
-                </div>
-                <div className="flex flex-1 items-center justify-between bg-muted/30 px-2 py-1.5 rounded-lg border border-white/5">
-                  <span className="text-[10px] text-muted-foreground flex gap-1 items-center">
-                    삼성 <button onClick={fetchRates} className="active:rotate-180 transition-transform"><RefreshCcw size={8}/></button>
-                  </span>
-                  <input inputMode="numeric" value={fmtNum(data.rates.samsungPrice)} onChange={e => updateRates({samsungPrice: e.target.value})} className="w-14 bg-transparent text-xs font-semibold outline-none text-right tabular-nums" placeholder="0" />
+          <div className="flex flex-col h-full overflow-hidden">
+            {/* 상단 통합 헤더 */}
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-card shrink-0">
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-sm font-bold text-foreground">자산 기록</h2>
+                <div className="flex items-center gap-2 bg-muted/40 px-2 py-1 rounded-lg border border-white/5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-bold text-muted-foreground/70 leading-none">USDT/USD</span>
+                    <div className="flex items-center gap-1">
+                      <input inputMode="numeric" value={fmtNum(data.rates.usdt)} onChange={e => updateRates({usdt: e.target.value})} className="w-9 bg-transparent text-[11px] font-bold outline-none text-right tabular-nums text-foreground/90" />
+                      <span className="text-[9px] text-muted-foreground/40">/</span>
+                      <input inputMode="numeric" value={fmtNum(data.rates.usd)} onChange={e => updateRates({usd: e.target.value})} className="w-9 bg-transparent text-[11px] font-bold outline-none text-left tabular-nums text-foreground/90" />
+                    </div>
+                  </div>
+                  <div className="w-[1px] h-2.5 bg-white/10" />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-bold text-muted-foreground/70 leading-none">삼성</span>
+                    <input inputMode="numeric" value={fmtNum(data.rates.samsungPrice)} onChange={e => updateRates({samsungPrice: e.target.value})} className="w-12 bg-transparent text-[11px] font-bold outline-none text-right tabular-nums text-foreground/90" />
+                    <button onClick={fetchRates} className="active:rotate-180 transition-transform text-muted-foreground/60 hover:text-foreground"><RefreshCcw size={10}/></button>
+                  </div>
                 </div>
               </div>
+              <button onClick={() => { setIsFormOpen(false); setEditingId(null); }} className="p-1.5 bg-muted/50 rounded-full text-muted-foreground hover:text-foreground transition-colors">
+                <X size={14} />
+              </button>
             </div>
 
             {/* 탭 바 */}
@@ -559,7 +610,7 @@ export default function AssetRecordPage() {
                   { id: "banks", label: "은행" },
                   { id: "pays", label: "페이" },
                   { id: "securities", label: "증권사" },
-                  { id: "etc", label: "기타" }
+                  { id: "etc", label: "실물 및 부채" }
                 ].map(t => (
                   <button key={t.id} onClick={() => setCashTab(t.id as "banks" | "pays" | "securities" | "etc")}
                     className={`px-3 py-1.5 text-[11px] rounded-full whitespace-nowrap transition-colors ${cashTab === t.id ? "bg-foreground text-background font-bold shadow-md" : "bg-muted text-muted-foreground border border-white/5"}`}>
@@ -629,16 +680,8 @@ export default function AssetRecordPage() {
                       updateFn={(k:string,v:string) => setData(p => ({ ...p, cash: { ...p.cash, securities: { ...p.cash.securities, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />
                   )}
                   {cashTab === "etc" && (
-                    <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
-                      <h3 className="text-sm font-bold text-foreground mb-3">기타</h3>
-                      <div className="space-y-1">
-                        <InputRow label="채무 (양수로 입력)" value={data.cash.debt["채무"]} onChange={(v: string) => setData(p => ({ ...p, cash: { ...p.cash, debt: { ...p.cash.debt, "채무": v } } }))} />
-                      </div>
-                      <div className="mt-4 pt-3 border-t border-white/5">
-                        <DynamicGroup type="phy" title="실물 자산" keys={PHYSICALS} dataObj={data.cash.physical}
-                          updateFn={(k:string,v:string) => setData(p => ({ ...p, cash: { ...p.cash, physical: { ...p.cash.physical, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />
-                      </div>
-                    </div>
+                    <DynamicGroup type="etc" title="실물 및 부채" keys={["채무", ...PHYSICALS]} dataObj={data.cash.etc}
+                      updateFn={(k:string,v:string) => setData(p => ({ ...p, cash: { ...p.cash, etc: { ...p.cash.etc, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />
                   )}
                 </div>
               )}
@@ -647,32 +690,35 @@ export default function AssetRecordPage() {
 
             {/* ── 요약 및 등록 버튼 ── */}
             <div className="shrink-0 bg-card border-t border-border">
-              <div className="px-4 py-3 bg-muted/20">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-[11px] text-muted-foreground">코인 (투자 {Math.round(coinInvestAmount/finalCrypto*100 || 0)}% / 대기 {Math.round(cryptoStandby/finalCrypto*100 || 0)}%)</span>
-                  <span className="text-xs font-semibold text-foreground">{fmtKrw(finalCrypto)}</span>
+              <div className="flex items-center bg-muted/20">
+                <div className="flex-1 px-4 py-3 border-r border-border/50">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] text-muted-foreground">코인 ({Math.round(coinInvestAmount/finalCrypto*100 || 0)}% / {Math.round(cryptoStandby/finalCrypto*100 || 0)}%)</span>
+                    <span className="text-[11px] font-semibold text-foreground">{fmtKrw(finalCrypto)}</span>
+                  </div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] text-muted-foreground">주식</span>
+                    <span className="text-[11px] font-semibold text-foreground">{fmtKrw(finalStock)}</span>
+                  </div>
+                  <div className="flex justify-between items-center mb-1.5 pb-1.5 border-b border-border/40">
+                    <span className="text-[10px] text-muted-foreground">현금</span>
+                    <span className="text-[11px] font-semibold text-foreground">{fmtKrw(rawCash)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-foreground">총 자산</span>
+                    <span className="text-xs font-bold text-blue-400">{fmtKrw(grandTotal)}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-[11px] text-muted-foreground">주식</span>
-                  <span className="text-xs font-semibold text-foreground">{fmtKrw(finalStock)}</span>
-                </div>
-                <div className="flex justify-between items-center mb-2 pb-2 border-b border-border">
-                  <span className="text-[11px] text-muted-foreground">현금</span>
-                  <span className="text-xs font-semibold text-foreground">{fmtKrw(rawCash)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-bold text-foreground">총 자산</span>
-                  <span className="text-sm font-bold text-blue-400">{fmtKrw(grandTotal)}</span>
-                </div>
-              </div>
 
-              <div className="px-3 py-2.5">
-                <button
-                  onClick={() => setModal(true)}
-                  className="w-full py-3 rounded-xl bg-foreground text-background font-bold text-sm active:scale-[0.98] transition-transform shadow-lg"
-                >
-                  기록 저장하기
-                </button>
+                <div className="px-4 py-4">
+                  <button
+                    onClick={() => setModal(true)}
+                    className="h-16 w-24 rounded-xl bg-foreground text-background font-bold text-sm active:scale-[0.96] transition-transform shadow-lg flex flex-col items-center justify-center gap-1"
+                  >
+                    <span>기록</span>
+                    <span>저장</span>
+                  </button>
+                </div>
               </div>
             </div>
 
