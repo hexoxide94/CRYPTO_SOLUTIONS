@@ -384,9 +384,9 @@ export default function AssetRecordPage() {
         return { ...next, cash: { ...next.cash, [cat]: cashObj } };
       }
       if (cat in next.crypto) {
-        const cryptoObj = { ...next.crypto[cat as keyof SnapshotData["crypto"]] };
-        if (typeof cryptoObj === 'object') {
-          const newObj = { ...cryptoObj };
+        const target = next.crypto[cat as keyof SnapshotData["crypto"]];
+        if (typeof target === 'object' && target !== null) {
+          const newObj = { ...target } as Record<string, string>;
           delete newObj[subKey];
           return { ...next, crypto: { ...next.crypto, [cat]: newObj } };
         }
