@@ -288,8 +288,8 @@ export default function AssetRecordPage() {
             ...INITIAL_DATA.cash.etc,
             ...prev.cash?.etc,
             // Migrate old debt/physical keys if they exist in the previous record
-            ...(prev.cash && "debt" in prev.cash ? (prev.cash as any).debt : {}),
-            ...(prev.cash && "physical" in prev.cash ? (prev.cash as any).physical : {})
+            ...(prev.cash && "debt" in prev.cash ? (prev.cash as unknown as { debt?: Record<string, string> }).debt : {}),
+            ...(prev.cash && "physical" in prev.cash ? (prev.cash as unknown as { physical?: Record<string, string> }).physical : {})
           }
         },
         rates: INITIAL_DATA.rates // Reset rates to be fetched fresh
