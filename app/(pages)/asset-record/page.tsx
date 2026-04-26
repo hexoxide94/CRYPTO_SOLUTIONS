@@ -545,7 +545,6 @@ export default function AssetRecordPage() {
              style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
           
           <div className="flex flex-col h-full overflow-hidden">
-          <div className="flex flex-col h-full overflow-hidden">
             {/* 상단 통합 헤더 */}
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-card shrink-0">
               <div className="flex items-center gap-2.5">
