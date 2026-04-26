@@ -532,10 +532,6 @@ export default function AssetRecordPage() {
         <div className="flex-1 px-3 py-3 flex flex-col gap-3 pb-24">
           <div className="flex justify-between items-center mb-1 px-1">
             <h1 className="text-sm font-bold text-foreground opacity-80">자산 기록 목록</h1>
-            <div className="flex bg-muted/50 p-1 rounded-lg border border-white/5">
-              <button onClick={() => setViewMode("compact")} className={`p-1.5 rounded-md transition-all ${viewMode === "compact" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground/80"}`}><List size={14} /></button>
-              <button onClick={() => setViewMode("detail")} className={`p-1.5 rounded-md transition-all ${viewMode === "detail" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground/80"}`}><LayoutList size={14} /></button>
-            </div>
           </div>
 
           {loading ? (
