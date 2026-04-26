@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUsdtPrices } from "@/lib/usdt-context";
-import { RefreshCcw, Plus, X, Trash2, Edit2, LayoutList, List } from "lucide-react";
+import { RefreshCcw, Plus, X, Trash2, Edit2 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
 // ─── 상수 ──────────────────────────────────────────────────────
