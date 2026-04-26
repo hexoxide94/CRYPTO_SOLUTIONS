@@ -276,11 +276,23 @@ export default function AssetRecordPage() {
 
   function handleAddNew() {
     if (snapshots.length > 0 && snapshots[0].detail_json) {
-      // Load previous record but reset rates
+      const prev = snapshots[0].detail_json;
+      // Robust merge to handle data structure changes (migration)
       setData({ 
         ...INITIAL_DATA, 
-        ...snapshots[0].detail_json, 
-        rates: INITIAL_DATA.rates 
+        ...prev,
+        cash: {
+          ...INITIAL_DATA.cash,
+          ...prev.cash,
+          etc: {
+            ...INITIAL_DATA.cash.etc,
+            ...prev.cash?.etc,
+            // Migrate old debt/physical keys if they exist in the previous record
+            ...(prev.cash && "debt" in prev.cash ? (prev.cash as any).debt : {}),
+            ...(prev.cash && "physical" in prev.cash ? (prev.cash as any).physical : {})
+          }
+        },
+        rates: INITIAL_DATA.rates // Reset rates to be fetched fresh
       });
     } else {
       setData(INITIAL_DATA);
