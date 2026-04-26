@@ -17,7 +17,6 @@ const DOMESTIC_EXCHANGES = ["업비트", "빗썸", "코인원", "코빗"];
 const FOREIGN_CURRENCY_BANKS = ["토스뱅크", "SC제일은행", "삼성증권"];
 
 const LS_KEY = "asset_snapshot_v3";
-const SAMSUNG_HEDGE_FIXED_VALUE = 8480000; // 160,000원 * 53주
 
 // ─── 타입 ──────────────────────────────────────────────────────
 interface SnapshotData {
@@ -560,14 +559,14 @@ export default function AssetRecordPage() {
             {tab === "coin" && (
               <div className="flex gap-2 px-3 py-2 bg-muted/10 shrink-0 overflow-x-auto scrollbar-hide border-b border-border">
                 {[{ id: "overseas", label: "해외 거래소" }, { id: "domestic", label: "국내 거래소" }, { id: "foreign", label: "외화 잔고" }, { id: "futures", label: "선물" }].map(t => (
-                  <button key={t.id} onClick={() => setCoinTab(t.id as any)} className={`px-3 py-1.5 text-[11px] rounded-full whitespace-nowrap transition-colors ${coinTab === t.id ? "bg-foreground text-background font-bold shadow-md" : "bg-muted text-muted-foreground border border-white/5"}`}>{t.label}</button>
+                  <button key={t.id} onClick={() => setCoinTab(t.id as "overseas" | "domestic" | "foreign" | "futures")} className={`px-3 py-1.5 text-[11px] rounded-full whitespace-nowrap transition-colors ${coinTab === t.id ? "bg-foreground text-background font-bold shadow-md" : "bg-muted text-muted-foreground border border-white/5"}`}>{t.label}</button>
                 ))}
               </div>
             )}
             {tab === "cash" && (
               <div className="flex gap-2 px-3 py-2 bg-muted/10 shrink-0 overflow-x-auto scrollbar-hide border-b border-border">
                 {[{ id: "banks", label: "은행" }, { id: "pays", label: "페이" }, { id: "securities", label: "증권사" }, { id: "etc", label: "실물 및 부채" }].map(t => (
-                  <button key={t.id} onClick={() => setCashTab(t.id as any)} className={`px-3 py-1.5 text-[11px] rounded-full whitespace-nowrap transition-colors ${cashTab === t.id ? "bg-foreground text-background font-bold shadow-md" : "bg-muted text-muted-foreground border border-white/5"}`}>{t.label}</button>
+                  <button key={t.id} onClick={() => setCashTab(t.id as "banks" | "pays" | "securities" | "etc")} className={`px-3 py-1.5 text-[11px] rounded-full whitespace-nowrap transition-colors ${cashTab === t.id ? "bg-foreground text-background font-bold shadow-md" : "bg-muted text-muted-foreground border border-white/5"}`}>{t.label}</button>
                 ))}
               </div>
             )}
