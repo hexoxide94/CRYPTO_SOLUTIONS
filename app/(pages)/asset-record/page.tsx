@@ -557,14 +557,14 @@ export default function AssetRecordPage() {
                           <PieChart>
                             <Pie
                               data={outerData} cx="50%" cy="50%" innerRadius={35} outerRadius={50} paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}
-                              label={({ index, percent }: { index: number; percent: number }) => index === outerMaxIdx ? `${(percent * 100).toFixed(0)}%` : ""}
+                              label={({ index, percent }: { index?: number; percent?: number }) => index === outerMaxIdx ? `${((percent ?? 0) * 100).toFixed(0)}%` : ""}
                               labelLine={false}
                             >
                               {outerData.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
                             </Pie>
                             <Pie
                               data={innerData} cx="50%" cy="50%" innerRadius={20} outerRadius={32} paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}
-                              label={({ index, percent }: { index: number; percent: number }) => index === innerMaxIdx ? `${(percent * 100).toFixed(0)}%` : ""}
+                              label={({ index, percent }: { index?: number; percent?: number }) => index === innerMaxIdx ? `${((percent ?? 0) * 100).toFixed(0)}%` : ""}
                               labelLine={false}
                             >
                               {innerData.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
