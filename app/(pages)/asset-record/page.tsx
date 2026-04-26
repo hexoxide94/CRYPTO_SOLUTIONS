@@ -97,6 +97,8 @@ function fmtTime(iso: string) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+const getPct = (val: number, total: number) => total > 0 ? Math.round((val / total) * 100) : 0;
+
 // ─── 컴포넌트 ───────────────────────────────────────────────
 interface InputRowProps {
   label: string;
@@ -104,11 +106,23 @@ interface InputRowProps {
   onChange: (val: string) => void;
   placeholder?: string;
   suffix?: string;
+  onDelete?: () => void;
 }
 
-const InputRow = ({ label, value, onChange, placeholder = "0", suffix = "원" }: InputRowProps) => (
-  <div className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
-    <span className="text-xs text-muted-foreground w-28 truncate pr-2" title={label}>{label}</span>
+const InputRow = ({ label, value, onChange, placeholder = "0", suffix = "원", onDelete }: InputRowProps) => (
+  <div className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0 group/row">
+    <div className="flex items-center gap-1">
+      {onDelete && (
+        <button 
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="opacity-0 group-hover/row:opacity-100 p-0.5 text-muted-foreground/40 hover:text-red-400 transition-all"
+          title="삭제"
+        >
+          <X size={12} />
+        </button>
+      )}
+      <span className="text-xs text-muted-foreground w-28 truncate pr-2" title={label}>{label}</span>
+    </div>
     <div className="flex items-center gap-1.5 flex-1 justify-end">
       <input
         inputMode="numeric"
@@ -131,9 +145,10 @@ interface DynamicGroupProps {
   suffix?: string;
   visibleKeys: Record<string, boolean>;
   showKey: (k: string) => void;
+  deleteFn?: (key: string) => void;
 }
 
-const DynamicGroup = ({ type, title, keys, dataObj, updateFn, suffix = "원", visibleKeys, showKey }: DynamicGroupProps) => {
+const DynamicGroup = ({ type, title, keys, dataObj, updateFn, suffix = "원", visibleKeys, showKey, deleteFn }: DynamicGroupProps) => {
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [customKey, setCustomKey] = useState("");
 
@@ -146,7 +161,14 @@ const DynamicGroup = ({ type, title, keys, dataObj, updateFn, suffix = "원", vi
       {title && <h3 className="text-sm font-bold text-foreground mb-3">{title}</h3>}
       <div className="space-y-1">
         {visible.map((k: string) => (
-          <InputRow key={k} label={k} suffix={suffix} value={dataObj[k]} onChange={(v) => updateFn(k, v)} />
+          <InputRow 
+            key={k} 
+            label={k} 
+            suffix={suffix} 
+            value={dataObj[k]} 
+            onChange={(v) => updateFn(k, v)} 
+            onDelete={deleteFn ? () => deleteFn(k) : undefined}
+          />
         ))}
       </div>
       <div className="mt-3 pt-2 border-t border-white/5 flex justify-end items-center gap-2">
@@ -210,9 +232,10 @@ interface DomesticGroupProps {
   updateDep: (k: string, v: string) => void;
   visibleKeys: Record<string, boolean>;
   showKey: (k: string) => void;
+  deleteFn?: (key: string) => void;
 }
 
-const DomesticGroup = ({ keys, totalObj, depObj, updateTotal, updateDep, visibleKeys, showKey }: DomesticGroupProps) => {
+const DomesticGroup = ({ keys, totalObj, depObj, updateTotal, updateDep, visibleKeys, showKey, deleteFn }: DomesticGroupProps) => {
   const visible = keys.filter(k => toNum(totalObj[k]) > 0 || toNum(depObj[k]) > 0 || visibleKeys[`dom_${k}`]);
   const hidden = keys.filter(k => toNum(totalObj[k]) === 0 && toNum(depObj[k]) === 0 && !visibleKeys[`dom_${k}`]);
 
@@ -220,7 +243,16 @@ const DomesticGroup = ({ keys, totalObj, depObj, updateTotal, updateDep, visible
     <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
       <h3 className="text-sm font-bold text-foreground mb-3 flex justify-between">국내 거래소</h3>
       {visible.map(k => (
-        <div key={k} className="py-2 mb-2 border-b border-white/5 last:border-0 last:mb-0">
+        <div key={k} className="py-2 mb-2 border-b border-white/5 last:border-0 last:mb-0 group/row relative">
+          {deleteFn && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); deleteFn(k); }}
+              className="absolute top-2 right-0 opacity-0 group-hover/row:opacity-100 p-1 text-muted-foreground/40 hover:text-red-400 transition-all z-10"
+              title="삭제"
+            >
+              <X size={14} />
+            </button>
+          )}
           <div className="text-xs font-semibold text-muted-foreground mb-2">{k}</div>
           <div className="flex flex-col gap-1 pl-2">
             <InputRow label="총액" value={totalObj[k]} onChange={v => updateTotal(k, v)} />
@@ -244,7 +276,7 @@ const DomesticGroup = ({ keys, totalObj, depObj, updateTotal, updateDep, visible
 export default function AssetRecordPage() {
   const { usdt } = useUsdtPrices();
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"compact" | "detail">("detail");
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
 
   interface SnapshotRecord {
     id: string;
@@ -307,9 +339,14 @@ export default function AssetRecordPage() {
       .from("asset_snapshots")
       .select("*")
       .order("recorded_at", { ascending: false });
-    if (dbData) setSnapshots(dbData);
+    if (dbData) {
+      setSnapshots(dbData);
+      if (dbData.length > 0 && expandedIds.length === 0) {
+        setExpandedIds([dbData[0].id]);
+      }
+    }
     setLoading(false);
-  }, []);
+  }, [expandedIds.length]);
 
   useEffect(() => { fetchSnapshots(); }, [fetchSnapshots]);
 
@@ -337,6 +374,36 @@ export default function AssetRecordPage() {
   }, [usdt, data.rates.usdt]);
 
   const showKey = (k: string) => setVisibleKeys(p => ({ ...p, [k]: true }));
+
+  const deleteFromData = (cat: keyof SnapshotData["cash"] | keyof SnapshotData["crypto"], subKey: string) => {
+    setData(prev => {
+      const next = { ...prev };
+      if (cat in next.cash) {
+        const cashObj = { ...next.cash[cat as keyof SnapshotData["cash"]] };
+        delete cashObj[subKey];
+        return { ...next, cash: { ...next.cash, [cat]: cashObj } };
+      }
+      if (cat in next.crypto) {
+        const cryptoObj = { ...next.crypto[cat as keyof SnapshotData["crypto"]] };
+        if (typeof cryptoObj === 'object') {
+          const newObj = { ...cryptoObj };
+          delete newObj[subKey];
+          return { ...next, crypto: { ...next.crypto, [cat]: newObj } };
+        }
+      }
+      return next;
+    });
+  };
+
+  const deleteFromDomestic = (k: string) => {
+    setData(prev => {
+      const nextTotal = { ...prev.crypto.domesticTotal };
+      const nextDep = { ...prev.crypto.domesticDeposit };
+      delete nextTotal[k];
+      delete nextDep[k];
+      return { ...prev, crypto: { ...prev.crypto, domesticTotal: nextTotal, domesticDeposit: nextDep } };
+    });
+  };
 
   function handleEdit(snap: SnapshotRecord) {
     if (snap.detail_json) {
@@ -454,6 +521,10 @@ export default function AssetRecordPage() {
     setModal(false); setIsFormOpen(false); setEditingId(null); fetchSnapshots();
   }
 
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
   // ─── 화면 렌더링 ────────────────────────────────────────────
   return (
     <div className="relative flex flex-col min-h-full">
@@ -475,25 +546,34 @@ export default function AssetRecordPage() {
             </div>
           ) : (
             snapshots.map(snap => {
+              const isExpanded = expandedIds.includes(snap.id);
               const detail = snap.detail_json;
               const kimp = detail?.kimp ?? 0;
               const debt = toNum(detail?.cash?.etc?.["채무"] || "0");
               const grossAsset = snap.total_amount + debt;
 
-              const coin = detail?.calculated?.finalCrypto || snap.coin_amount;
-              const stock = detail?.calculated?.finalStock || snap.stock_amount;
+              const coinInvest = detail?.calculated?.coinInvestAmount || 0;
+              const coinStandby = detail?.calculated?.cryptoStandby || 0;
+              const stock = detail?.calculated?.stock_amount || snap.stock_amount;
               const grossCash = (detail?.calculated?.rawCash || snap.cash_amount) + debt;
-              const outerData = [{ name: "코인", value: coin, color: "#0ea5e9" }, { name: "주식", value: stock, color: "#a855f7" }, { name: "현금", value: grossCash, color: "#f59e0b" }];
-              const innerData = [{ name: "부채", value: debt, color: "#ef4444" }, { name: "순자산", value: snap.total_amount, color: "#10b981" }];
 
-              const outerMaxIdx = outerData.reduce((max, x, i, arr) => x.value > arr[max].value ? i : max, 0);
-              const innerMaxIdx = innerData.reduce((max, x, i, arr) => x.value > arr[max].value ? i : max, 0);
+              // Pie data
+              const outerData = [
+                { name: "코인_투자", value: coinInvest, color: "#0ea5e9" },
+                { name: "코인_대기", value: coinStandby, color: "#38bdf8" },
+                { name: "주식", value: stock, color: "#a855f7" },
+                { name: "현금", value: grossCash, color: "#f59e0b" }
+              ];
+              const innerData = [
+                { name: "부채", value: debt, color: "#ef4444" },
+                { name: "순자산", value: snap.total_amount, color: "#10b981" }
+              ];
 
-              if (viewMode === "compact") {
+              if (!isExpanded) {
                 const d = new Date(snap.recorded_at);
                 const dateStr = `${String(d.getFullYear()).slice(2)}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;
                 return (
-                  <div key={snap.id} className="bg-card border border-border rounded-xl px-4 py-2.5 shadow-sm flex items-center justify-between group relative">
+                  <div key={snap.id} onClick={() => toggleExpand(snap.id)} className="bg-card border border-border rounded-xl px-4 py-2.5 shadow-sm flex items-center justify-between group relative cursor-pointer active:bg-muted/30 transition-colors">
                     <div className="flex items-center gap-4">
                       <span className="text-[11px] font-bold text-muted-foreground w-12">{dateStr}</span>
                       <div className="h-3 w-[1px] bg-border" />
@@ -502,8 +582,8 @@ export default function AssetRecordPage() {
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-bold text-foreground">{fmtKrw(snap.total_amount)}</span>
                       <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => handleEdit(snap)} className="text-muted-foreground hover:text-blue-400"><Edit2 size={12} /></button>
-                        <button onClick={() => handleDelete(snap.id)} className="text-muted-foreground hover:text-red-400"><Trash2 size={12} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); handleEdit(snap); }} className="text-muted-foreground hover:text-blue-400"><Edit2 size={12} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); handleDelete(snap.id); }} className="text-muted-foreground hover:text-red-400"><Trash2 size={12} /></button>
                       </div>
                     </div>
                   </div>
@@ -511,16 +591,16 @@ export default function AssetRecordPage() {
               }
 
               return (
-                <div key={snap.id} className="bg-card border border-border rounded-xl p-3 shadow-sm relative group">
+                <div key={snap.id} className="bg-card border border-border rounded-xl p-3 shadow-sm relative group cursor-pointer" onClick={() => toggleExpand(snap.id)}>
                   <div className="absolute top-3.5 right-4 flex gap-3 text-muted-foreground opacity-30 group-hover:opacity-100 transition-opacity z-10">
-                    <button onClick={() => handleEdit(snap)} className="hover:text-blue-400"><Edit2 size={13} /></button>
-                    <button onClick={() => handleDelete(snap.id)} className="hover:text-red-400"><Trash2 size={13} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); handleEdit(snap); }} className="hover:text-blue-400"><Edit2 size={13} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(snap.id); }} className="hover:text-red-400"><Trash2 size={13} /></button>
                   </div>
                   
                   <div className="flex justify-between items-start mb-3 pr-14">
-                    <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
                       <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-md w-fit">{fmtTime(snap.recorded_at)}</span>
-                      <span className="text-[9px] font-medium text-muted-foreground/80 pl-0.5">김프: <span className={kimp > 0 ? "text-red-400" : "text-blue-400"}>{kimp > 0 ? "+" : ""}{kimp.toFixed(2)}%</span></span>
+                      <span className="text-[9px] font-medium text-muted-foreground/80">김프: <span className={kimp > 0 ? "text-red-400" : "text-blue-400"}>{kimp > 0 ? "+" : ""}{kimp.toFixed(2)}%</span></span>
                     </div>
                     <div className="text-right">
                       <div className="text-[9px] text-muted-foreground">총 자산 (순자산)</div>
@@ -529,13 +609,66 @@ export default function AssetRecordPage() {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    {/* 좌측 3줄 텍스트 (코인 통합) */}
+                    {/* 좌측 이중 도넛 차트 (위치 변경됨) */}
+                    <div className="w-1/2 flex flex-col items-center">
+                      <div className="w-full h-[110px] relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={outerData} cx="50%" cy="50%" innerRadius={35} outerRadius={50} paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}
+                              label={false} labelLine={false}
+                            >
+                              {outerData.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
+                            </Pie>
+                            <Pie
+                              data={innerData} cx="50%" cy="50%" innerRadius={20} outerRadius={32} paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}
+                              label={false} labelLine={false}
+                            >
+                              {innerData.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none flex-col -mt-1">
+                          <span className="text-[7px] text-muted-foreground font-bold uppercase tracking-tighter">Gross</span>
+                          <span className="text-[9px] font-black text-foreground">{Math.round(grossAsset/1000000)}M</span>
+                        </div>
+                      </div>
+                      {/* 범례 (2줄 형식) */}
+                      <div className="flex flex-col items-center gap-0.5 mt-1 w-full px-1">
+                        <div className="flex flex-wrap justify-center gap-x-2">
+                          {[
+                            {n:`코인_투자(${getPct(coinInvest, grossAsset)}%)`,c:"#0ea5e9"},
+                            {n:`코인_대기(${getPct(coinStandby, grossAsset)}%)`,c:"#38bdf8"}
+                          ].map(l => (
+                            <div key={l.n} className="flex items-center gap-1">
+                              <div className="w-1 h-1 rounded-full" style={{backgroundColor:l.c}} />
+                              <span className="text-[7px] text-muted-foreground/80">{l.n}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap justify-center gap-x-2">
+                          {[
+                            {n:`주식(${getPct(stock, grossAsset)}%)`,c:"#a855f7"},
+                            {n:`현금(${getPct(grossCash, grossAsset)}%)`,c:"#f59e0b"},
+                            {n:`부채(${getPct(debt, grossAsset)}%)`,c:"#ef4444"},
+                            {n:`순자산(${getPct(snap.total_amount, grossAsset)}%)`,c:"#10b981"}
+                          ].map(l => (
+                            <div key={l.n} className="flex items-center gap-1">
+                              <div className="w-1 h-1 rounded-full" style={{backgroundColor:l.c}} />
+                              <span className="text-[7px] text-muted-foreground/80">{l.n}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 우측 3줄 텍스트 (코인 통합, 위치 변경됨) */}
                     <div className="w-1/2 flex flex-col gap-1.5">
                       <div className="flex flex-col py-1 px-2 bg-muted/30 rounded-lg border border-white/5">
                         <div className="flex justify-between items-center mb-0.5">
                           <span className="text-[8px] text-muted-foreground">코인 총계</span>
                           <span className="text-[8px] font-bold text-muted-foreground/70">
-                            {detail?.calculated?.coinInvestAmount ? Math.round(detail.calculated.coinInvestAmount/snap.coin_amount*100) : 0}% / {detail?.calculated?.cryptoStandby ? Math.round(detail.calculated.cryptoStandby/snap.coin_amount*100) : 0}%
+                            투자 : {getPct(coinInvest, snap.coin_amount)}%
                           </span>
                         </div>
                         <span className="text-xs font-bold text-foreground">{fmtKrw(snap.coin_amount)}</span>
@@ -547,43 +680,6 @@ export default function AssetRecordPage() {
                       <div className="flex flex-col py-1 px-2 bg-muted/30 rounded-lg border border-white/5">
                         <span className="text-[8px] text-muted-foreground mb-0.5">현금 총액 (순수)</span>
                         <span className="text-xs font-bold text-foreground">{fmtKrw(snap.cash_amount)}</span>
-                      </div>
-                    </div>
-
-                    {/* 우측 이중 도넛 차트 */}
-                    <div className="w-1/2 flex flex-col items-center">
-                      <div className="w-full h-[110px] relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={outerData} cx="50%" cy="50%" innerRadius={35} outerRadius={50} paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}
-                              label={({ index, percent }: { index?: number; percent?: number }) => index === outerMaxIdx ? `${((percent ?? 0) * 100).toFixed(0)}%` : ""}
-                              labelLine={false}
-                            >
-                              {outerData.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
-                            </Pie>
-                            <Pie
-                              data={innerData} cx="50%" cy="50%" innerRadius={20} outerRadius={32} paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}
-                              label={({ index, percent }: { index?: number; percent?: number }) => index === innerMaxIdx ? `${((percent ?? 0) * 100).toFixed(0)}%` : ""}
-                              labelLine={false}
-                            >
-                              {innerData.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
-                            </Pie>
-                          </PieChart>
-                        </ResponsiveContainer>
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none flex-col -mt-1">
-                          <span className="text-[7px] text-muted-foreground font-bold uppercase tracking-tighter">Gross</span>
-                          <span className="text-[9px] font-black text-foreground">{Math.round(grossAsset/1000000)}M</span>
-                        </div>
-                      </div>
-                      {/* 범례 */}
-                      <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 mt-1 px-2">
-                        {[{n:"코인",c:"#0ea5e9"},{n:"주식",c:"#a855f7"},{n:"현금",c:"#f59e0b"},{n:"부채",c:"#ef4444"},{n:"순자산",c:"#10b981"}].map(l => (
-                          <div key={l.n} className="flex items-center gap-1">
-                            <div className="w-1.5 h-1.5 rounded-full" style={{backgroundColor:l.c}} />
-                            <span className="text-[7px] text-muted-foreground/80">{l.n}</span>
-                          </div>
-                        ))}
                       </div>
                     </div>
                   </div>
@@ -620,9 +716,9 @@ export default function AssetRecordPage() {
             <div className="flex-1 overflow-y-auto px-4 py-4">
               {tab === "coin" && (
                 <div className="space-y-4 pb-10">
-                  {coinTab === "overseas" && <DynamicGroup type="ovs" title="해외 거래소 (USDT)" keys={OVERSEAS_EXCHANGES} dataObj={data.crypto.overseas} suffix="$" updateFn={(k,v) => setData(p => ({ ...p, crypto: { ...p.crypto, overseas: { ...p.crypto.overseas, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />}
-                  {coinTab === "domestic" && <DomesticGroup keys={DOMESTIC_EXCHANGES} totalObj={data.crypto.domesticTotal} depObj={data.crypto.domesticDeposit} updateTotal={(k,v) => setData(p => ({ ...p, crypto: { ...p.crypto, domesticTotal: { ...p.crypto.domesticTotal, [k]: v } } }))} updateDep={(k,v) => setData(p => ({ ...p, crypto: { ...p.crypto, domesticDeposit: { ...p.crypto.domesticDeposit, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />}
-                  {coinTab === "foreign" && <DynamicGroup type="for" title="외화 잔고 (USD)" keys={FOREIGN_CURRENCY_BANKS} dataObj={data.crypto.foreignCurrency} suffix="$" updateFn={(k,v) => setData(p => ({ ...p, crypto: { ...p.crypto, foreignCurrency: { ...p.crypto.foreignCurrency, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />}
+                  {coinTab === "overseas" && <DynamicGroup type="ovs" title="해외 거래소 (USDT)" keys={OVERSEAS_EXCHANGES} dataObj={data.crypto.overseas} suffix="$" updateFn={(k,v) => setData(p => ({ ...p, crypto: { ...p.crypto, overseas: { ...p.crypto.overseas, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} deleteFn={(k) => deleteFromData("overseas", k)} />}
+                  {coinTab === "domestic" && <DomesticGroup keys={DOMESTIC_EXCHANGES} totalObj={data.crypto.domesticTotal} depObj={data.crypto.domesticDeposit} updateTotal={(k,v) => setData(p => ({ ...p, crypto: { ...p.crypto, domesticTotal: { ...p.crypto.domesticTotal, [k]: v } } }))} updateDep={(k,v) => setData(p => ({ ...p, crypto: { ...p.crypto, domesticDeposit: { ...p.crypto.domesticDeposit, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} deleteFn={deleteFromDomestic} />}
+                  {coinTab === "foreign" && <DynamicGroup type="for" title="외화 잔고 (USD)" keys={FOREIGN_CURRENCY_BANKS} dataObj={data.crypto.foreignCurrency} suffix="$" updateFn={(k,v) => setData(p => ({ ...p, crypto: { ...p.crypto, foreignCurrency: { ...p.crypto.foreignCurrency, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} deleteFn={(k) => deleteFromData("foreignCurrency", k)} />}
                   {coinTab === "futures" && <div className="bg-card border border-border rounded-xl p-3 shadow-sm"><h3 className="text-sm font-bold text-foreground mb-3">선물 (담보금 평가액)</h3><div className="space-y-1"><InputRow label="국내 선물" value={data.crypto.futuresDomestic} onChange={v => setData(p => ({ ...p, crypto: { ...p.crypto, futuresDomestic: v } }))} /><InputRow label="해외 선물" suffix="$" value={data.crypto.futuresOverseas} onChange={v => setData(p => ({ ...p, crypto: { ...p.crypto, futuresOverseas: v } }))} /></div></div>}
                 </div>
               )}
@@ -641,10 +737,10 @@ export default function AssetRecordPage() {
               )}
               {tab === "cash" && (
                 <div className="space-y-4 pb-10">
-                  {cashTab === "banks" && <DynamicGroup type="bnk" title="은행" keys={BANKS} dataObj={data.cash.banks} updateFn={(k,v) => setData(p => ({ ...p, cash: { ...p.cash, banks: { ...p.cash.banks, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />}
-                  {cashTab === "pays" && <><div className="text-[10px] text-muted-foreground mb-2 px-1 leading-relaxed">서울페이 및 온누리상품권은 액면가를 입력 시 5% 할인된 현금 가치로 반영</div><DynamicGroup type="pay" title="페이" keys={PAYS} dataObj={data.cash.pays} updateFn={(k,v) => setData(p => ({ ...p, cash: { ...p.cash, pays: { ...p.cash.pays, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} /></>}
-                  {cashTab === "securities" && <DynamicGroup type="sec" title="증권사 예수금" keys={SECURITIES} dataObj={data.cash.securities} updateFn={(k,v) => setData(p => ({ ...p, cash: { ...p.cash, securities: { ...p.cash.securities, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />}
-                  {cashTab === "etc" && <DynamicGroup type="etc" title="실물 및 부채" keys={["채무", ...PHYSICALS]} dataObj={data.cash.etc} updateFn={(k,v) => setData(p => ({ ...p, cash: { ...p.cash, etc: { ...p.cash.etc, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} />}
+                  {cashTab === "banks" && <DynamicGroup type="bnk" title="은행" keys={BANKS} dataObj={data.cash.banks} updateFn={(k,v) => setData(p => ({ ...p, cash: { ...p.cash, banks: { ...p.cash.banks, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} deleteFn={(k) => deleteFromData("banks", k)} />}
+                  {cashTab === "pays" && <><div className="text-[10px] text-muted-foreground mb-2 px-1 leading-relaxed">서울페이 및 온누리상품권은 액면가를 입력 시 5% 할인된 현금 가치로 반영</div><DynamicGroup type="pay" title="페이" keys={PAYS} dataObj={data.cash.pays} updateFn={(k,v) => setData(p => ({ ...p, cash: { ...p.cash, pays: { ...p.cash.pays, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} deleteFn={(k) => deleteFromData("pays", k)} /></>}
+                  {cashTab === "securities" && <DynamicGroup type="sec" title="증권사 예수금" keys={SECURITIES} dataObj={data.cash.securities} updateFn={(k,v) => setData(p => ({ ...p, cash: { ...p.cash, securities: { ...p.cash.securities, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} deleteFn={(k) => deleteFromData("securities", k)} />}
+                  {cashTab === "etc" && <DynamicGroup type="etc" title="실물 및 부채" keys={["채무", ...PHYSICALS]} dataObj={data.cash.etc} updateFn={(k,v) => setData(p => ({ ...p, cash: { ...p.cash, etc: { ...p.cash.etc, [k]: v } } }))} visibleKeys={visibleKeys} showKey={showKey} deleteFn={(k) => deleteFromData("etc", k)} />}
                 </div>
               )}
             </div>
