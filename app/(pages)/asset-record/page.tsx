@@ -480,11 +480,20 @@ export default function AssetRecordPage() {
               const debt = toNum(detail?.cash?.etc?.["채무"] || "0");
               const grossAsset = snap.total_amount + debt;
 
+              const coin = detail?.calculated?.finalCrypto || snap.coin_amount;
+              const stock = detail?.calculated?.finalStock || snap.stock_amount;
+              const grossCash = (detail?.calculated?.rawCash || snap.cash_amount) + debt;
+              const outerData = [{ name: "코인", value: coin, color: "#0ea5e9" }, { name: "주식", value: stock, color: "#a855f7" }, { name: "현금", value: grossCash, color: "#f59e0b" }];
+              const innerData = [{ name: "부채", value: debt, color: "#ef4444" }, { name: "순자산", value: snap.total_amount, color: "#10b981" }];
+
+              const outerMaxIdx = outerData.reduce((max, x, i, arr) => x.value > arr[max].value ? i : max, 0);
+              const innerMaxIdx = innerData.reduce((max, x, i, arr) => x.value > arr[max].value ? i : max, 0);
+
               if (viewMode === "compact") {
                 const d = new Date(snap.recorded_at);
                 const dateStr = `${String(d.getFullYear()).slice(2)}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;
                 return (
-                  <div key={snap.id} className="bg-card border border-border rounded-xl px-4 py-3 shadow-sm flex items-center justify-between group relative">
+                  <div key={snap.id} className="bg-card border border-border rounded-xl px-4 py-2.5 shadow-sm flex items-center justify-between group relative">
                     <div className="flex items-center gap-4">
                       <span className="text-[11px] font-bold text-muted-foreground w-12">{dateStr}</span>
                       <div className="h-3 w-[1px] bg-border" />
@@ -501,43 +510,81 @@ export default function AssetRecordPage() {
                 );
               }
 
-              const coin = detail?.calculated?.finalCrypto || snap.coin_amount;
-              const stock = detail?.calculated?.finalStock || snap.stock_amount;
-              const grossCash = (detail?.calculated?.rawCash || snap.cash_amount) + debt;
-              const outerData = [{ value: coin, color: "#0ea5e9" }, { value: stock, color: "#a855f7" }, { value: grossCash, color: "#f59e0b" }];
-              const innerData = [{ value: debt, color: "#ef4444" }, { value: snap.total_amount, color: "#10b981" }];
-
               return (
-                <div key={snap.id} className="bg-card border border-border rounded-xl p-4 shadow-sm relative group">
-                  <div className="absolute top-4 right-4 flex gap-3 text-muted-foreground opacity-50 group-hover:opacity-100 transition-opacity z-10">
-                    <button onClick={() => handleEdit(snap)} className="hover:text-blue-400"><Edit2 size={14} /></button>
-                    <button onClick={() => handleDelete(snap.id)} className="hover:text-red-400"><Trash2 size={14} /></button>
+                <div key={snap.id} className="bg-card border border-border rounded-xl p-3 shadow-sm relative group">
+                  <div className="absolute top-3.5 right-4 flex gap-3 text-muted-foreground opacity-30 group-hover:opacity-100 transition-opacity z-10">
+                    <button onClick={() => handleEdit(snap)} className="hover:text-blue-400"><Edit2 size={13} /></button>
+                    <button onClick={() => handleDelete(snap.id)} className="hover:text-red-400"><Trash2 size={13} /></button>
                   </div>
-                  <div className="flex justify-between items-start mb-4 pr-16">
-                    <div className="flex flex-col gap-1.5">
-                      <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-md w-fit">{fmtTime(snap.recorded_at)}</span>
-                      <span className="text-[10px] font-medium text-muted-foreground/80 pl-0.5">김프: <span className={kimp > 0 ? "text-red-400" : "text-blue-400"}>{kimp > 0 ? "+" : ""}{kimp.toFixed(2)}%</span></span>
+                  
+                  <div className="flex justify-between items-start mb-3 pr-14">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-md w-fit">{fmtTime(snap.recorded_at)}</span>
+                      <span className="text-[9px] font-medium text-muted-foreground/80 pl-0.5">김프: <span className={kimp > 0 ? "text-red-400" : "text-blue-400"}>{kimp > 0 ? "+" : ""}{kimp.toFixed(2)}%</span></span>
                     </div>
                     <div className="text-right">
-                      <div className="text-[10px] text-muted-foreground mb-0.5">총 자산 (순자산)</div>
-                      <div className="text-base font-black text-blue-400 tracking-tight">{fmtKrw(snap.total_amount)}</div>
+                      <div className="text-[9px] text-muted-foreground">총 자산 (순자산)</div>
+                      <div className="text-sm font-black text-blue-400 tracking-tight">{fmtKrw(snap.total_amount)}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1 flex flex-col gap-2">
-                      <div className="flex flex-col py-1.5 px-2.5 bg-muted/30 rounded-lg border border-white/5"><span className="text-[9px] text-muted-foreground mb-0.5">코인 총계</span><span className="text-xs font-bold text-foreground">{fmtKrw(snap.coin_amount)}</span></div>
-                      <div className="flex flex-col py-1.5 px-2.5 bg-muted/30 rounded-lg border border-white/5"><span className="text-[9px] text-muted-foreground mb-0.5">투자 / 대기</span><span className="text-[11px] font-bold text-foreground">{detail?.calculated?.coinInvestAmount ? Math.round(detail.calculated.coinInvestAmount/snap.coin_amount*100) : 0}% / {detail?.calculated?.cryptoStandby ? Math.round(detail.calculated.cryptoStandby/snap.coin_amount*100) : 0}%</span></div>
-                      <div className="flex flex-col py-1.5 px-2.5 bg-muted/30 rounded-lg border border-white/5"><span className="text-[9px] text-muted-foreground mb-0.5">주식 총액</span><span className="text-xs font-bold text-foreground">{fmtKrw(snap.stock_amount)}</span></div>
-                      <div className="flex flex-col py-1.5 px-2.5 bg-muted/30 rounded-lg border border-white/5"><span className="text-[9px] text-muted-foreground mb-0.5">현금 총액 (순수)</span><span className="text-xs font-bold text-foreground">{fmtKrw(snap.cash_amount)}</span></div>
+
+                  <div className="flex items-center gap-3">
+                    {/* 좌측 3줄 텍스트 (코인 통합) */}
+                    <div className="w-1/2 flex flex-col gap-1.5">
+                      <div className="flex flex-col py-1 px-2 bg-muted/30 rounded-lg border border-white/5">
+                        <div className="flex justify-between items-center mb-0.5">
+                          <span className="text-[8px] text-muted-foreground">코인 총계</span>
+                          <span className="text-[8px] font-bold text-muted-foreground/70">
+                            {detail?.calculated?.coinInvestAmount ? Math.round(detail.calculated.coinInvestAmount/snap.coin_amount*100) : 0}% / {detail?.calculated?.cryptoStandby ? Math.round(detail.calculated.cryptoStandby/snap.coin_amount*100) : 0}%
+                          </span>
+                        </div>
+                        <span className="text-xs font-bold text-foreground">{fmtKrw(snap.coin_amount)}</span>
+                      </div>
+                      <div className="flex flex-col py-1 px-2 bg-muted/30 rounded-lg border border-white/5">
+                        <span className="text-[8px] text-muted-foreground mb-0.5">주식 총액</span>
+                        <span className="text-xs font-bold text-foreground">{fmtKrw(snap.stock_amount)}</span>
+                      </div>
+                      <div className="flex flex-col py-1 px-2 bg-muted/30 rounded-lg border border-white/5">
+                        <span className="text-[8px] text-muted-foreground mb-0.5">현금 총액 (순수)</span>
+                        <span className="text-xs font-bold text-foreground">{fmtKrw(snap.cash_amount)}</span>
+                      </div>
                     </div>
-                    <div className="w-[140px] h-[140px] relative shrink-0">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={outerData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}>{outerData.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}</Pie>
-                          <Pie data={innerData} cx="50%" cy="50%" innerRadius={25} outerRadius={40} paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}>{innerData.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}</Pie>
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none flex-col"><span className="text-[8px] text-muted-foreground font-bold uppercase tracking-tighter">Gross</span><span className="text-[10px] font-black text-foreground">{Math.round(grossAsset/1000000)}M</span></div>
+
+                    {/* 우측 이중 도넛 차트 */}
+                    <div className="w-1/2 flex flex-col items-center">
+                      <div className="w-full h-[110px] relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={outerData} cx="50%" cy="50%" innerRadius={35} outerRadius={50} paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}
+                              label={({ index, percent }) => index === outerMaxIdx ? `${(percent * 100).toFixed(0)}%` : ""}
+                              labelLine={false}
+                            >
+                              {outerData.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
+                            </Pie>
+                            <Pie
+                              data={innerData} cx="50%" cy="50%" innerRadius={20} outerRadius={32} paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}
+                              label={({ index, percent }) => index === innerMaxIdx ? `${(percent * 100).toFixed(0)}%` : ""}
+                              labelLine={false}
+                            >
+                              {innerData.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none flex-col -mt-1">
+                          <span className="text-[7px] text-muted-foreground font-bold uppercase tracking-tighter">Gross</span>
+                          <span className="text-[9px] font-black text-foreground">{Math.round(grossAsset/1000000)}M</span>
+                        </div>
+                      </div>
+                      {/* 범례 */}
+                      <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 mt-1 px-2">
+                        {[{n:"코인",c:"#0ea5e9"},{n:"주식",c:"#a855f7"},{n:"현금",c:"#f59e0b"},{n:"부채",c:"#ef4444"},{n:"순자산",c:"#10b981"}].map(l => (
+                          <div key={l.n} className="flex items-center gap-1">
+                            <div className="w-1.5 h-1.5 rounded-full" style={{backgroundColor:l.c}} />
+                            <span className="text-[7px] text-muted-foreground/80">{l.n}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
