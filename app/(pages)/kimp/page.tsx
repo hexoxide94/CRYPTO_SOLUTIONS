@@ -44,8 +44,8 @@ interface FormState {
   traded_at:    string;
 }
 
-type ChartRange   = "1d" | "1w" | "1m" | "all";
-type SummaryRange = "1d" | "1w" | "1m";
+type ChartRange   = "1d" | "1w" | "2w" | "1m" | "all";
+type SummaryRange = "1d" | "1w" | "2w" | "1m";
 
 // ─── 유틸 ──────────────────────────────────────────────────────
 const toNum = (s: string) => Number(s.replace(/,/g, "")) || 0;
@@ -98,6 +98,7 @@ function getRangeStart(range: ChartRange | SummaryRange): number {
   const now = Date.now();
   if (range === "1d") return now - 24 * 60 * 60 * 1000;
   if (range === "1w") return now - 7 * 24 * 60 * 60 * 1000;
+  if (range === "2w") return now - 14 * 24 * 60 * 60 * 1000;
   if (range === "1m") return now - 30 * 24 * 60 * 60 * 1000;
   return 0;
 }
@@ -119,8 +120,8 @@ function computeXTicks(range: ChartRange, filteredAll: KimpTrade[]): number[] | 
 
   const rangeStart = getRangeStart(range);
 
-  if (range === "1w" || range === "1m") {
-    const intervalMs = range === "1w" ? 86_400_000 : 5 * 86_400_000;
+  if (range === "1w" || range === "2w" || range === "1m") {
+    const intervalMs = range === "1w" ? 86_400_000 : range === "2w" ? 2 * 86_400_000 : 5 * 86_400_000;
     const base = new Date(); base.setHours(0, 0, 0, 0);
     let t = base.getTime();
     while (t > rangeStart) t -= intervalMs;
@@ -165,7 +166,7 @@ function xTickFormatter(range: ChartRange, equalInterval: boolean, filteredAll: 
 }
 
 const CHART_RANGE_LABELS: Record<ChartRange, string> = {
-  "1d": "1일", "1w": "1주", "1m": "1달", "all": "전체",
+  "1d": "1일", "1w": "1주", "2w": "2주", "1m": "1달", "all": "전체",
 };
 
 function defaultForm(): FormState {
@@ -304,7 +305,7 @@ export default function KimpPage() {
   const sumOpen   = summaryTrades.filter(t => t.status === "open");
   const sumClosed = summaryTrades.filter(t => t.status === "closed");
 
-  const summaryDays = summaryRange === "1d" ? 1 : summaryRange === "1w" ? 7 : 30;
+  const summaryDays = summaryRange === "1d" ? 1 : summaryRange === "1w" ? 7 : summaryRange === "2w" ? 14 : 30;
 
   function getContractsSum(ts: KimpTrade[]) {
     return ts.reduce((sum, t) => {
@@ -566,7 +567,7 @@ export default function KimpPage() {
             {/* 툴바 */}
             <div className="flex items-center justify-between gap-1 mb-2">
               <div className="flex items-center gap-0.5">
-                {(["1d", "1w", "1m", "all"] as const).map(r => (
+                {(["1d", "1w", "2w", "1m", "all"] as const).map(r => (
                   <button key={r} onClick={() => setChartRange(r)} className={tbBtn(chartRange === r)}>
                     {CHART_RANGE_LABELS[r]}
                   </button>
@@ -736,9 +737,9 @@ export default function KimpPage() {
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground font-medium">최근 김프 통계</span>
                   <div className="flex gap-1">
-                    {(["1d", "1w", "1m"] as const).map(r => (
+                    {(["1d", "1w", "2w", "1m"] as const).map(r => (
                       <button key={r} onClick={() => setSummaryRange(r)} className={tbBtn(summaryRange === r)}>
-                        {r === "1d" ? "1일" : r === "1w" ? "1주" : "1달"}
+                        {r === "1d" ? "1일" : r === "1w" ? "1주" : r === "2w" ? "2주" : "1달"}
                       </button>
                     ))}
                   </div>

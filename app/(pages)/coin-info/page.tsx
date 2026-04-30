@@ -259,6 +259,13 @@ function SummaryBidAsk({ data }: { data?: OrderbookData }) {
 
 function OrderbookCard({ pair, data, onRemove }: { pair: Market; data?: OrderbookData; onRemove: () => void }) {
   const exLabel = pair.exchange === "upbit" ? "UPBIT" : pair.exchange === "bithumb" ? "BITHUMB" : "COINONE";
+
+  const maxQty = data ? Math.max(
+    ...data.asks.map(a => a.qty),
+    ...data.bids.map(b => b.qty),
+    0.000001
+  ) : 1;
+
   return (
     <div className="bg-card rounded-xl border border-white/5 shadow-md flex flex-col overflow-hidden relative">
       <button onClick={onRemove} className="absolute top-2 right-2 text-muted-foreground hover:text-red-400 transition-colors z-10 bg-background/50 rounded-full p-0.5">
@@ -272,9 +279,13 @@ function OrderbookCard({ pair, data, onRemove }: { pair: Market; data?: Orderboo
         {/* Asks (매도) */}
         <div className="flex flex-col gap-0.5 mb-1.5">
           {data && data.asks.length > 0 ? data.asks.map((ask, i) => (
-            <div key={i} className="flex justify-between items-center px-1.5 py-1 bg-blue-500/10 rounded">
-              <span className="text-blue-500 font-semibold text-[11px] tabular-nums">{ask.price.toLocaleString()}</span>
-              <span className="text-muted-foreground text-[8.5px] tabular-nums">{ask.qty.toLocaleString(undefined, {maximumFractionDigits:4})}</span>
+            <div key={i} className="flex justify-between items-center px-1.5 py-1 bg-blue-500/10 rounded relative overflow-hidden">
+              <div 
+                className="absolute right-0 top-0 bottom-0 bg-blue-500/20" 
+                style={{ width: `${(ask.qty / maxQty) * 100}%` }}
+              />
+              <span className="text-blue-500 font-semibold text-[11px] tabular-nums z-10">{ask.price.toLocaleString()}</span>
+              <span className="text-muted-foreground text-[8.5px] tabular-nums z-10">{ask.qty.toLocaleString(undefined, {maximumFractionDigits:4})}</span>
             </div>
           )) : (
             <div className="flex items-center justify-center h-[70px] text-[10px] text-muted-foreground">로딩 중...</div>
@@ -283,9 +294,13 @@ function OrderbookCard({ pair, data, onRemove }: { pair: Market; data?: Orderboo
         {/* Bids (매수) */}
         <div className="flex flex-col gap-0.5">
           {data && data.bids.length > 0 && data.bids.map((bid, i) => (
-            <div key={i} className="flex justify-between items-center px-1.5 py-1 bg-red-500/10 rounded">
-              <span className="text-red-500 font-semibold text-[11px] tabular-nums">{bid.price.toLocaleString()}</span>
-              <span className="text-muted-foreground text-[8.5px] tabular-nums">{bid.qty.toLocaleString(undefined, {maximumFractionDigits:4})}</span>
+            <div key={i} className="flex justify-between items-center px-1.5 py-1 bg-red-500/10 rounded relative overflow-hidden">
+              <div 
+                className="absolute right-0 top-0 bottom-0 bg-red-500/20" 
+                style={{ width: `${(bid.qty / maxQty) * 100}%` }}
+              />
+              <span className="text-red-500 font-semibold text-[11px] tabular-nums z-10">{bid.price.toLocaleString()}</span>
+              <span className="text-muted-foreground text-[8.5px] tabular-nums z-10">{bid.qty.toLocaleString(undefined, {maximumFractionDigits:4})}</span>
             </div>
           ))}
         </div>
