@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUsdtPrices } from "@/lib/usdt-context";
 import {
@@ -234,7 +234,50 @@ export default function KimpPage() {
   }>({ kimp: { min: "", max: "" }, diff: { min: "", max: "" } });
   const [summaryRange, setSummaryRange]   = useState<SummaryRange>("1w");
   const [listExpanded, setListExpanded]   = useState(true);
+  const [chartHeight, setChartHeight]     = useState(180);
+  const [isResizing, setIsResizing]       = useState(false);
+  const startYRef = useRef(0);
+  const startHeightRef = useRef(0);
   const { usdt: usdtPrices }             = useUsdtPrices();
+
+  // ── 차트 높이 조절 ──────────────────────────────────────────
+  const startResizing = (e: React.MouseEvent | React.TouchEvent) => {
+    setIsResizing(true);
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    startYRef.current = clientY;
+    startHeightRef.current = chartHeight;
+    document.body.style.cursor = "ns-resize";
+    document.body.style.userSelect = "none";
+  };
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      const clientY = "touches" in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+      const deltaY = clientY - startYRef.current;
+      const newHeight = Math.min(Math.max(140, startHeightRef.current + deltaY), 270);
+      setChartHeight(newHeight);
+    };
+
+    const onUp = () => {
+      setIsResizing(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onUp);
+
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onUp);
+    };
+  }, [isResizing]);
 
   // ── 데이터 로드 ──────────────────────────────────────────────
   const fetchTrades = useCallback(async () => {
@@ -551,7 +594,7 @@ export default function KimpPage() {
             </div>
 
             {/* 그래프 */}
-            <div style={{ height: 180 }}>
+            <div style={{ height: chartHeight }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={allChartPoints} margin={{ top: 4, right: 10, bottom: 0, left: -5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -605,6 +648,15 @@ export default function KimpPage() {
                   )}
                 </ComposedChart>
               </ResponsiveContainer>
+            </div>
+
+            {/* 높이 조절 핸들 */}
+            <div
+              className="absolute bottom-0 left-0 right-0 h-4 cursor-ns-resize flex items-center justify-center group z-20"
+              onMouseDown={startResizing}
+              onTouchStart={startResizing}
+            >
+              <div className="w-10 h-1 rounded-full bg-white/5 group-hover:bg-white/20 transition-colors" />
             </div>
 
             {/* 범례 및 설정은 상단 툴바로 이동됨 */}

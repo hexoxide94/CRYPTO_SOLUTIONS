@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUsdtPrices } from "@/lib/usdt-context";
-import { RefreshCcw, Plus, X, Trash2, Edit2 } from "lucide-react";
+import { RefreshCcw, Plus, X, Trash2, Edit2, Download } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
 // ─── 상수 ──────────────────────────────────────────────────────
@@ -525,6 +525,41 @@ export default function AssetRecordPage() {
     setExpandedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
+  // ─── CSV 다운로드 ──────────────────────────────────────────
+  function handleDownloadCSV() {
+    if (!confirm("자산 기록 목록을 CSV로 다운로드 하시겠습니까?")) return;
+    
+    const headers = ["기록일시", "총자산(순자산)", "코인자산", "주식자산", "현금자산", "김프(%)", "부채"];
+    const csvRows = [headers.join(",")];
+    
+    for (const snap of snapshots) {
+      const detail = snap.detail_json;
+      const kimp = detail?.kimp ?? 0;
+      const debt = toNum(detail?.cash?.etc?.["채무"] || "0");
+      
+      const row = [
+        fmtTime(snap.recorded_at).replace(/,/g, ""), // Remove commas from date
+        snap.total_amount,
+        snap.coin_amount,
+        snap.stock_amount,
+        snap.cash_amount,
+        kimp.toFixed(2),
+        debt
+      ];
+      csvRows.push(row.join(","));
+    }
+    
+    const csvString = "\uFEFF" + csvRows.join("\n");
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `자산기록_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   // ─── 화면 렌더링 ────────────────────────────────────────────
   return (
     <div className="relative flex flex-col min-h-full">
@@ -532,6 +567,13 @@ export default function AssetRecordPage() {
         <div className="flex-1 px-3 py-3 flex flex-col gap-3 pb-24">
           <div className="flex justify-between items-center mb-1 px-1">
             <h1 className="text-sm font-bold text-foreground opacity-80">자산 기록 목록</h1>
+            <button
+              onClick={handleDownloadCSV}
+              className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+              title="CSV 다운로드"
+            >
+              <Download size={14} />
+            </button>
           </div>
 
           {loading ? (
