@@ -18,7 +18,7 @@ async function fetchToken(): Promise<string | null> {
 
   try {
     const res = await fetch(
-      "https://openapi.koreainvestment.com:9443/oauth2/tokenP",
+      "https://openapi.koreainvestment.com/oauth2/tokenP",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -94,7 +94,7 @@ async function fetchKisRate(token: string, marketCode: string): Promise<number |
   const appkey = process.env.KIS_APP_KEY!;
   const appsecret = process.env.KIS_APP_SECRET!;
 
-  const url = new URL("https://openapi.koreainvestment.com:9443/uapi/domestic-futureoption/v1/quotations/inquire-price");
+  const url = new URL("https://openapi.koreainvestment.com/uapi/domestic-futureoption/v1/quotations/inquire-price");
   url.searchParams.set("FID_COND_MRKT_DIV_CODE", marketCode);
   url.searchParams.set("FID_INPUT_ISCD", "A75605");
 
