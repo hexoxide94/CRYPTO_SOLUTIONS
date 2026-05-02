@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 // ─── 토큰 캐시 ───────────────────────────────────────────────────────
 let cachedToken: string | null = null;
 let tokenExpiresAt = 0;
