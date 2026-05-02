@@ -43,38 +43,59 @@ async function getToken(): Promise<string | null> {
 }
 
 // ─── 아이콘 및 상태 판별 ───────────────────────────────────────────────
-function getMarketSession() {
+function getMarketInfo() {
   const now = new Date();
-  const kstOffset = 9 * 60;
-  const kstNow = new Date(now.getTime() + kstOffset * 60_000);
+  // KST (UTC+9) 계산
+  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   const hour = kstNow.getUTCHours();
   const min = kstNow.getUTCMinutes();
+  const day = kstNow.getUTCDay(); // 0: 일, 1: 월, ..., 6: 토
   const totalMin = hour * 60 + min;
+
+  // 주간 장중: 월~금 08:45 ~ 15:45
+  const isWeekday = day >= 1 && day <= 5;
+  const isDayActive = isWeekday && (totalMin >= 8 * 60 + 45 && totalMin < 15 * 60 + 45);
   
-  // 주간 장중: 08:45 ~ 15:45
-  if (totalMin >= 8 * 60 + 45 && totalMin < 15 * 60 + 45) {
-    return { icon: "☀️", session: "DAY_ACTIVE" };
+  // 야간 장중: 월~금 18:00 ~ 다음날 05:00 (토요일 새벽 05:00 포함)
+  const isNightActive = (isWeekday && totalMin >= 18 * 60) || (day >= 2 && day <= 6 && totalMin < 5 * 60);
+
+  let marketCode = "CF";
+  let icon = "☀️";
+  let session = "DAY_CLOSE";
+
+  if (isDayActive) {
+    marketCode = "CF";
+    icon = "☀️";
+    session = "DAY_ACTIVE";
+  } else if (isNightActive) {
+    marketCode = "CM";
+    icon = "🌙";
+    session = "NIGHT_ACTIVE";
+  } else {
+    // 장외 시간대: 가장 최근에 끝난 장의 코드를 선택
+    // 평일 오후 15:45 ~ 18:00 사이면 주간 종가(CF)
+    // 그 외 시간(새벽 05시 ~ 아침 08시 45분)이나 주말이면 야간 종가(CM)가 더 최신임
+    if (isWeekday && totalMin >= 15 * 60 + 45 && totalMin < 18 * 60) {
+      marketCode = "CF";
+      icon = "☀️";
+      session = "DAY_CLOSE";
+    } else {
+      marketCode = "CM";
+      icon = "🌙";
+      session = "NIGHT_CLOSE";
+    }
   }
-  // 주간 정산: 15:45 ~ 18:00
-  if (totalMin >= 15 * 60 + 45 && totalMin < 18 * 60) {
-    return { icon: "☀️", session: "DAY_CLOSE" };
-  }
-  // 야간 장중: 18:00 ~ 06:00 (다음날)
-  if (totalMin >= 18 * 60 || totalMin < 6 * 60) {
-    return { icon: "🌙", session: "NIGHT_ACTIVE" };
-  }
-  // 야간 정산: 06:00 ~ 08:45
-  return { icon: "🌙", session: "NIGHT_CLOSE" };
+
+  return { marketCode, icon, session };
 }
 
 // ─── KIS 달러선물 조회 ───────────────────────────────────────────────
-async function fetchKisRate(token: string): Promise<number | null> {
+async function fetchKisRate(token: string, marketCode: string): Promise<number | null> {
   const appkey = process.env.KIS_APP_KEY!;
   const appsecret = process.env.KIS_APP_SECRET!;
 
-  // 주간/야간 모두 A75605 (달러선물 5월물) 코드를 사용합니다.
   const url = new URL("https://openapi.koreainvestment.com:9443/uapi/domestic-futureoption/v1/quotations/inquire-price");
-  url.searchParams.set("FID_COND_MRKT_DIV_CODE", "CF");
+  url.searchParams.set("FID_COND_MRKT_DIV_CODE", marketCode);
   url.searchParams.set("FID_INPUT_ISCD", "A75605");
 
   try {
@@ -96,7 +117,7 @@ async function fetchKisRate(token: string): Promise<number | null> {
       return null;
     }
 
-    // futs_prpr: 현재가
+    // 통화선물(달러)은 futs_prpr 필드에 현재가가 들어있습니다.
     const price = data?.output1?.futs_prpr;
     if (!price) return null;
 
@@ -121,11 +142,11 @@ async function fetchFallbackRate(): Promise<number | null> {
 
 // ─── Route Handler ───────────────────────────────────────────────────
 export async function GET() {
-  const { icon, session } = getMarketSession();
+  const { marketCode, icon, session } = getMarketInfo();
   
   const token = await getToken();
   if (token) {
-    const kisRate = await fetchKisRate(token);
+    const kisRate = await fetchKisRate(token, marketCode);
     if (kisRate !== null) {
       lastRate = kisRate;
       lastIcon = icon;
@@ -134,6 +155,7 @@ export async function GET() {
         icon: icon,
         source: "kis",
         session: session,
+        marketCode: marketCode,
         timestamp: new Date().toISOString() 
       });
     }
@@ -148,7 +170,8 @@ export async function GET() {
       rate: fallback, 
       icon: "⚠️",
       source: "fallback",
-      session: session
+      session: session,
+      marketCode: marketCode
     });
   }
 
@@ -158,7 +181,8 @@ export async function GET() {
       rate: lastRate, 
       icon: lastIcon,
       source: "cached",
-      session: session
+      session: session,
+      marketCode: marketCode
     });
   }
 
