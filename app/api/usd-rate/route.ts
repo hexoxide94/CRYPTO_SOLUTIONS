@@ -24,7 +24,10 @@ async function fetchToken(): Promise<string | null> {
       "https://openapi.koreainvestment.com:9443/oauth2/tokenP",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+        },
         body: JSON.stringify({ grant_type: "client_credentials", appkey, appsecret }),
       }
     );
@@ -112,6 +115,7 @@ async function fetchKisRate(token: string, marketCode: string): Promise<number |
         "appsecret": appsecret,
         "tr_id": "FHMIF10000000",
         "custtype": "P",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
       },
       cache: "no-store",
     });
