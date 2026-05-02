@@ -21,7 +21,7 @@ async function fetchToken(): Promise<string | null> {
 
   try {
     const res = await fetch(
-      "https://openapi.koreainvestment.com/oauth2/tokenP",
+      "https://openapi.koreainvestment.com:9443/oauth2/tokenP",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -99,7 +99,7 @@ async function fetchKisRate(token: string, marketCode: string): Promise<number |
   const appkey = process.env.KIS_APP_KEY!;
   const appsecret = process.env.KIS_APP_SECRET!;
 
-  const url = new URL("https://openapi.koreainvestment.com/uapi/domestic-futureoption/v1/quotations/inquire-price");
+  const url = new URL("https://openapi.koreainvestment.com:9443/uapi/domestic-futureoption/v1/quotations/inquire-price");
   url.searchParams.set("FID_COND_MRKT_DIV_CODE", marketCode);
   url.searchParams.set("FID_INPUT_ISCD", "A75605");
 
@@ -153,26 +153,24 @@ export async function GET() {
   
   try {
     const token = await getToken();
-    if (!token) {
-      throw new Error("Failed to authenticate with KIS (Token is null)");
+    if (token) {
+      const kisRate = await fetchKisRate(token, marketCode);
+      if (kisRate !== null) {
+        lastRate = kisRate;
+        lastIcon = icon;
+        return NextResponse.json({ 
+          rate: kisRate, 
+          icon: icon,
+          source: "kis",
+          session: session,
+          marketCode: marketCode,
+          timestamp: new Date().toISOString() 
+        });
+      }
     }
 
-    const kisRate = await fetchKisRate(token, marketCode);
-    if (kisRate !== null) {
-      lastRate = kisRate;
-      lastIcon = icon;
-      return NextResponse.json({ 
-        rate: kisRate, 
-        icon: icon,
-        source: "kis",
-        session: session,
-        marketCode: marketCode,
-        timestamp: new Date().toISOString() 
-      });
-    }
-
-    // KIS 실패 시 폴백
-    console.warn("[KIS Fetch Failed] Attempting fallback to er-api...");
+    // KIS 실패 시 (토큰 없거나 호출 실패) 폴백 시도
+    console.warn("[KIS Failed] Attempting fallback to er-api...");
     const fallback = await fetchFallbackRate();
     if (fallback !== null) {
       lastRate = fallback;
@@ -200,7 +198,7 @@ export async function GET() {
     return NextResponse.json({ 
       error: "rate unavailable",
       diagnostics: {
-        token_valid: !!token,
+        token_present: !!token,
         kis_rate: null,
         fallback_rate: null
       }
