@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { Sun, Moon } from "lucide-react";
+import { Sun, Moon, ChevronDown } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useUsdtPrices } from "@/lib/usdt-context";
 import AlertPanel from "./AlertPanel";
@@ -152,63 +152,65 @@ export default function TopBar() {
   return (
     <>
       <header
-        className="fixed top-0 left-0 right-0 z-50 bg-card border-b border-border flex items-center px-3 w-full max-w-md mx-auto w-full cursor-pointer hover:bg-muted/30 transition-colors"
+        className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-md border-b border-border flex items-center px-3 w-full max-w-md mx-auto cursor-pointer hover:bg-muted/50 transition-all active:scale-[0.98]"
         style={{ height: "var(--topbar-h, 48px)" }}
         onClick={(e) => {
-          if ((e.target as HTMLElement).closest('button[aria-label="다크모드 토글"]')) return;
+          const isDarkBtn = (e.target as HTMLElement).closest('button[aria-label="다크모드 토글"]');
+          if (isDarkBtn) return;
+          console.log("[TopBar] Header clicked, toggling alert panel");
           setIsAlertOpen(v => !v);
         }}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
+          {/* KIMP */}
+          <div className="flex items-baseline gap-0.5 shrink-0">
+            <span className="text-[10px] text-muted-foreground font-medium leading-none">KIMP</span>
+            {kimpPct != null && kimpDiff != null ? (
+              <span className={`text-[11px] font-bold leading-none tabular-nums ${kimpColor}`}>
+                {sign}{kimpPct.toFixed(2)}%
+              </span>
+            ) : (
+              <span className="text-[11px] font-bold leading-none text-muted-foreground">—</span>
+            )}
+          </div>
 
-        {/* KIMP */}
-        <div className="flex items-baseline gap-0.5 shrink-0">
-          <span className="text-[10px] text-muted-foreground font-medium leading-none">KIMP</span>
-          {kimpPct != null && kimpDiff != null ? (
-            <span className={`text-[11px] font-bold leading-none tabular-nums ${kimpColor}`}>
-              {sign}{kimpPct.toFixed(2)}% ({sign}{kimpDiff.toFixed(1)}원)
+          <Sep />
+
+          {/* USDT */}
+          <div className="flex items-baseline gap-0.5 shrink-0">
+            <span className="text-[10px] text-muted-foreground font-medium leading-none">USDT</span>
+            <span className="text-[11px] font-bold leading-none tabular-nums text-foreground">
+              {usdt ? Math.round(usdt.bestBid).toLocaleString() : "—"}
             </span>
-          ) : (
-            <span className="text-[11px] font-bold leading-none text-muted-foreground">—</span>
-          )}
+          </div>
+
+          <Sep />
+
+          {/* USD/KRW */}
+          <div className="flex items-baseline gap-0.5 shrink-0">
+            <span className="text-[10px] text-muted-foreground font-medium leading-none">USD</span>
+            <span className="text-[11px] font-bold leading-none tabular-nums text-foreground">
+              {usdStatus === "ok" ? Math.round(usdKrw!).toLocaleString() : "---"}
+            </span>
+          </div>
+
+          {/* 클릭 힌트 아이콘 */}
+          <div className="ml-auto pr-1">
+            <ChevronDown size={12} className={`text-muted-foreground transition-transform duration-300 ${isAlertOpen ? "rotate-180" : ""}`} />
+          </div>
         </div>
 
-        <Sep />
-
-        {/* USDT: 매도상단호가 / 매수하단호가 */}
-        <div className="flex items-baseline gap-0.5 shrink-0">
-          <span className="text-[10px] text-muted-foreground font-medium leading-none">USDT</span>
-          <span className="text-[11px] font-bold leading-none tabular-nums text-foreground">
-            {usdt
-              ? `${Math.round(usdt.bestAsk).toLocaleString()} / ${Math.round(usdt.bestBid).toLocaleString()}`
-              : "— / —"}
-          </span>
-        </div>
-
-        <Sep />
-
-        {/* USD/KRW */}
-        <div className="flex items-baseline gap-0.5 shrink-0">
-          <span className="text-[10px] text-muted-foreground font-medium leading-none">USD {usdIcon}</span>
-          <span className="text-[11px] font-bold leading-none tabular-nums text-foreground">
-            {usdStatus === "loading"
-              ? "---"
-              : usdStatus === "error"
-              ? "N/A"
-              : usdKrw!.toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
-        </div>
-
-      </div>
-
-      <button
-        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        className="ml-2 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
-        aria-label="다크모드 토글"
-      >
-        {mounted && theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-      </button>
-    </header>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setTheme(theme === "dark" ? "light" : "dark");
+          }}
+          className="ml-1 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+          aria-label="다크모드 토글"
+        >
+          {mounted && theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+      </header>
       <AlertPanel isOpen={isAlertOpen} onClose={() => setIsAlertOpen(false)} />
     </>
   );

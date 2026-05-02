@@ -103,7 +103,7 @@ export default function AlertPanel({ isOpen, onClose }: { isOpen: boolean; onClo
 
   return (
     <div 
-      className={`fixed top-[48px] left-0 right-0 max-w-md mx-auto bg-card/95 backdrop-blur-xl shadow-2xl transition-all duration-300 origin-top overflow-hidden z-40
+      className={`fixed top-[48px] left-0 right-0 max-w-md mx-auto bg-card/95 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] transition-all duration-300 origin-top overflow-hidden z-[100]
         ${isOpen ? "max-h-[80vh] opacity-100 border-b border-l border-r border-border rounded-b-2xl" : "max-h-0 opacity-0 pointer-events-none"}`}
     >
       <div className="p-4 max-h-[80vh] overflow-y-auto">

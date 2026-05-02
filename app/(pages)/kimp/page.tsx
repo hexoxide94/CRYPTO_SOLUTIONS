@@ -235,33 +235,7 @@ export default function KimpPage() {
   }>({ kimp: { min: "", max: "" }, diff: { min: "", max: "" } });
   const [summaryRange, setSummaryRange]   = useState<SummaryRange>("1w");
   const [listExpanded, setListExpanded]   = useState(true);
-  const [chartHeight, setChartHeight]     = useState(270);
-  const [isResizing, setIsResizing]       = useState(false);
-  const startYRef = useRef(0);
-  const startHeightRef = useRef(0);
-  const { usdt: usdtPrices }             = useUsdtPrices();
 
-  // ── 차트 높이 조절 ──────────────────────────────────────────
-  const startResizing = (e: React.MouseEvent | React.TouchEvent) => {
-    setIsResizing(true);
-    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-    startYRef.current = clientY;
-    startHeightRef.current = chartHeight;
-    document.body.style.cursor = "ns-resize";
-    document.body.style.userSelect = "none";
-  };
-
-  useEffect(() => {
-    if (!isResizing) return;
-
-    const onMove = (e: MouseEvent | TouchEvent) => {
-      const clientY = "touches" in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
-      const deltaY = clientY - startYRef.current;
-      const newHeight = Math.min(Math.max(140, startHeightRef.current + deltaY), 270);
-      setChartHeight(newHeight);
-    };
-
-    const onUp = () => {
       setIsResizing(false);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
