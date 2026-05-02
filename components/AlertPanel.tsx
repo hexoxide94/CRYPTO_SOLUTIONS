@@ -121,11 +121,11 @@ export default function AlertPanel({ isOpen, onClose }: { isOpen: boolean; onClo
         {showForm ? (
           <div className="bg-muted/50 rounded-lg p-3 mb-4 border border-border space-y-3 text-sm" onClick={e => e.stopPropagation()}>
             <div className="flex gap-2">
-              <select className="bg-background border border-border rounded p-1.5 flex-1" value={formType} onChange={e => setFormType(e.target.value as any)}>
+              <select className="bg-background border border-border rounded p-1.5 flex-1" value={formType} onChange={e => setFormType(e.target.value as "percent" | "krw")}>
                 <option value="krw">원(₩) 기준</option>
                 <option value="percent">퍼센트(%) 기준</option>
               </select>
-              <select className="bg-background border border-border rounded p-1.5 flex-1" value={formCondition} onChange={e => setFormCondition(e.target.value as any)}>
+              <select className="bg-background border border-border rounded p-1.5 flex-1" value={formCondition} onChange={e => setFormCondition(e.target.value as "gte" | "lte")}>
                 <option value="gte">이상 (크거나 같을때)</option>
                 <option value="lte">이하 (작거나 같을때)</option>
               </select>
