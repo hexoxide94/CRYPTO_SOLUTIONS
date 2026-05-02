@@ -235,7 +235,7 @@ export default function KimpPage() {
   }>({ kimp: { min: "", max: "" }, diff: { min: "", max: "" } });
   const [summaryRange, setSummaryRange]   = useState<SummaryRange>("1w");
   const [listExpanded, setListExpanded]   = useState(true);
-  const [chartHeight, setChartHeight]     = useState(180);
+  const [chartHeight, setChartHeight]     = useState(270);
   const [isResizing, setIsResizing]       = useState(false);
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);

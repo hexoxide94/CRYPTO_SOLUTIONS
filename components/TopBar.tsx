@@ -4,6 +4,7 @@ import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useUsdtPrices } from "@/lib/usdt-context";
+import AlertPanel from "./AlertPanel";
 
 // ─── 상수 ────────────────────────────────────────────────────────
 const COINONE_WS_URL = "wss://stream.coinone.co.kr";
@@ -19,6 +20,7 @@ export default function TopBar() {
   const [usdKrw, setUsdKrw]       = useState<number | null>(null);
   const [usdIcon, setUsdIcon]     = useState<string>("");
   const [usdStatus, setUsdStatus] = useState<"loading" | "ok" | "error">("loading");
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
 
   const wsRef      = useRef<WebSocket | null>(null);
   const pingRef    = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -148,11 +150,16 @@ export default function TopBar() {
 
   // ── 렌더 ────────────────────────────────────────────────────────
   return (
-    <header
-      className="fixed top-0 left-0 right-0 z-50 bg-card border-b border-border flex items-center px-3 w-full max-w-md mx-auto w-full"
-      style={{ height: "var(--topbar-h, 48px)" }}
-    >
-      <div className="flex items-center gap-2 flex-1 min-w-0">
+    <>
+      <header
+        className="fixed top-0 left-0 right-0 z-50 bg-card border-b border-border flex items-center px-3 w-full max-w-md mx-auto w-full cursor-pointer hover:bg-muted/30 transition-colors"
+        style={{ height: "var(--topbar-h, 48px)" }}
+        onClick={(e) => {
+          if ((e.target as HTMLElement).closest('button[aria-label="다크모드 토글"]')) return;
+          setIsAlertOpen(v => !v);
+        }}
+      >
+        <div className="flex items-center gap-2 flex-1 min-w-0">
 
         {/* KIMP */}
         <div className="flex items-baseline gap-0.5 shrink-0">
@@ -202,6 +209,8 @@ export default function TopBar() {
         {mounted && theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
       </button>
     </header>
+      <AlertPanel isOpen={isAlertOpen} onClose={() => setIsAlertOpen(false)} />
+    </>
   );
 }
 
