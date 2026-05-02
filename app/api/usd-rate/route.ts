@@ -206,10 +206,11 @@ export async function GET() {
       }
     }, { status: 503 });
 
-  } catch (error: any) {
-    console.error("[USD Rate Route Error]", error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("[USD Rate Route Error]", errorMessage);
     return NextResponse.json({ 
-      error: error.message || "Internal Server Error",
+      error: errorMessage || "Internal Server Error",
       source: "error_handler"
     }, { status: 500 });
   }
