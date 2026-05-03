@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/kimp-alerts",
-      "schedule": "0 0 * * *"
+      "schedule": "* * * * *"
     }
   ]
 }

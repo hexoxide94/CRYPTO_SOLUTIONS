@@ -18,7 +18,6 @@ export default function TopBar() {
   const [mounted, setMounted]     = useState(false);
   const { usdt, setUsdt }         = useUsdtPrices();
   const [usdKrw, setUsdKrw]       = useState<number | null>(null);
-  const [usdIcon, setUsdIcon]     = useState<string>("");
   const [usdStatus, setUsdStatus] = useState<"loading" | "ok" | "error">("loading");
   const [isAlertOpen, setIsAlertOpen] = useState(false);
 
@@ -35,7 +34,6 @@ export default function TopBar() {
       const data = await res.json();
       if (typeof data?.rate === "number") {
         setUsdKrw(data.rate);
-        setUsdIcon(data.icon || "");
         setUsdStatus("ok");
       } else {
         setUsdStatus("error");
@@ -164,7 +162,7 @@ export default function TopBar() {
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {/* KIMP */}
           <div className="flex items-baseline gap-0.5 shrink-0">
-            <span className="text-[10px] text-muted-foreground font-medium leading-none">KIMP</span>
+            <span className="text-[10px] text-muted-foreground font-medium leading-none">KP</span>
             {kimpPct != null && kimpDiff != null ? (
               <span className={`text-[11px] font-bold leading-none tabular-nums ${kimpColor}`}>
                 {sign}{kimpPct.toFixed(2)}%

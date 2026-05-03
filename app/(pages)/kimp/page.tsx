@@ -214,6 +214,7 @@ function applyFee(stable: number, dollar: number, feeStable: number, feeDollar: 
 
 // ═══════════════════════════════════════════════════════════════
 export default function KimpPage() {
+  const { usdt: usdtPrices } = useUsdtPrices();
   const [trades, setTrades]               = useState<KimpTrade[]>([]);
   const [loading, setLoading]             = useState(true);
   const [sheetOpen, setSheetOpen]         = useState(false);
@@ -235,16 +236,40 @@ export default function KimpPage() {
   }>({ kimp: { min: "", max: "" }, diff: { min: "", max: "" } });
   const [summaryRange, setSummaryRange]   = useState<SummaryRange>("1w");
   const [listExpanded, setListExpanded]   = useState(true);
+  const [isResizing, setIsResizing]       = useState(false);
+  const [chartHeight, setChartHeight]     = useState(270);
+  const startYRef                         = useRef(0);
+  const startHeightRef                    = useRef(chartHeight);
 
+  const startResizing = (e: React.MouseEvent | React.TouchEvent) => {
+    setIsResizing(true);
+    startYRef.current = "touches" in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+    startHeightRef.current = chartHeight;
+    document.body.style.cursor = "ns-resize";
+    document.body.style.userSelect = "none";
+  };
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      if (!isResizing) return;
+      const clientY = "touches" in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+      const deltaY = clientY - startYRef.current;
+      const newHeight = Math.max(100, Math.min(1000, startHeightRef.current + deltaY));
+      setChartHeight(newHeight);
+    };
+
+    const onUp = () => {
       setIsResizing(false);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     };
 
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    window.addEventListener("touchmove", onMove, { passive: false });
-    window.addEventListener("touchend", onUp);
+    if (isResizing) {
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      window.addEventListener("touchmove", onMove, { passive: false });
+      window.addEventListener("touchend", onUp);
+    }
 
     return () => {
       window.removeEventListener("mousemove", onMove);
@@ -253,6 +278,7 @@ export default function KimpPage() {
       window.removeEventListener("touchend", onUp);
     };
   }, [isResizing]);
+
 
   // ── 데이터 로드 ──────────────────────────────────────────────
   const fetchTrades = useCallback(async () => {
