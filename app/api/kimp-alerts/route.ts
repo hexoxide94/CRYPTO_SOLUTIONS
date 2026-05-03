@@ -45,7 +45,8 @@ export async function GET(request: Request) {
     const { data: alerts, error } = await supabase
       .from("kimp_alerts")
       .select("*")
-      .eq("enabled", true);
+      .eq("enabled", true)
+      .neq("id", "cache-buster-" + Date.now()); // 캐시 방지용 무의미한 조건
 
     if (error) {
       console.error("[KIMP Alerts] DB 조회 에러:", error);
@@ -95,18 +96,14 @@ export async function GET(request: Request) {
       if (alert.last_triggered_at) {
         const lastTriggered = new Date(alert.last_triggered_at).getTime();
         const intervalMs = (alert.interval_minutes || 5) * 60 * 1000;
-        if (now - lastTriggered < intervalMs) {
-          continue; // 쿨다운 중
-        }
+        if (now - lastTriggered < intervalMs) continue;
       }
 
-      // 조건 검사 로직 (전문가 매매 기준)
-      // 이상(gte) -> 매도 목적 -> 매수호가(Bid, 낮은값)가 목표가 돌파 시
-      // 이하(lte) -> 매수 목적 -> 매도호가(Ask, 높은값)가 목표가 하락 시
       const targetValue = Number(alert.value);
       let conditionMet = false;
       let currentPct = 0;
       let currentDiff = 0;
+
       if (alert.condition_type === "gte") {
         currentPct = kimpPctBid;
         currentDiff = kimpDiffBid;
@@ -118,31 +115,34 @@ export async function GET(request: Request) {
       }
 
       if (conditionMet) {
-        // 메시지 포맷: KP +0.75% / +11.0원 (5.6원▲)
-        const signPct = currentPct >= 0 ? "+" : "";
-        const signKrw = currentDiff >= 0 ? "+" : "";
-        const indicator = alert.condition_type === "gte" ? "▲" : "▼";
-        const unit = alert.type === "percent" ? "%" : "원";
-        const msg = `KP ${signPct}${currentPct.toFixed(2)}% / ${signKrw}${currentDiff.toFixed(1)}원 (${targetValue}${unit}${indicator})`;
-        
-        await sendTelegramAlert(msg);
-        triggeredCount++;
-
-        // DB 갱신
-        if (alert.is_recurring) {
-          const { error: updErr } = await supabase
-            .from("kimp_alerts")
-            .update({ last_triggered_at: new Date().toISOString() })
-            .eq("id", alert.id);
-          if (updErr) console.error(`[KIMP Alerts] 반복 알림 갱신 실패 (ID: ${alert.id}):`, updErr);
-        } else {
-          // 1회성은 발송 후 비활성화
+        // 1회성인 경우 발송 전에 먼저 DB에서 끈다 (중복 발송 방지)
+        if (!alert.is_recurring) {
           const { error: updErr } = await supabase
             .from("kimp_alerts")
             .update({ enabled: false, last_triggered_at: new Date().toISOString() })
             .eq("id", alert.id);
-          if (updErr) console.error(`[KIMP Alerts] 1회성 알림 비활성화 실패 (ID: ${alert.id}):`, updErr);
+          if (updErr) {
+            console.error(`[KIMP Alerts] 비활성화 실패 (ID: ${alert.id}):`, updErr);
+            continue; // DB 업데이트 실패 시 발송하지 않음 (안전제일)
+          }
+        } else {
+          // 반복 알림인 경우 시간만 갱신
+          await supabase
+            .from("kimp_alerts")
+            .update({ last_triggered_at: new Date().toISOString() })
+            .eq("id", alert.id);
         }
+
+        // 메시지 발송
+        const signPct = currentPct >= 0 ? "+" : "";
+        const signKrw = currentDiff >= 0 ? "+" : "";
+        const indicator = alert.condition_type === "gte" ? "▲" : "▼";
+        const unit = alert.type === "percent" ? "%" : "원";
+        const shortId = alert.id.substring(0, 4);
+        const msg = `KP ${signPct}${currentPct.toFixed(2)}% / ${signKrw}${currentDiff.toFixed(1)}원 (${targetValue}${unit}${indicator}) [ID:${shortId}]`;
+        
+        await sendTelegramAlert(msg);
+        triggeredCount++;
       }
     }
 
