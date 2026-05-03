@@ -138,8 +138,8 @@ export async function GET(request: Request) {
         const indicator = alert.condition_type === "gte" ? "▲" : "▼";
         const unit = alert.type === "percent" ? "%" : "원";
         const shortId = alert.id.substring(0, 4);
-        const dbHint = process.env.NEXT_PUBLIC_SUPABASE_URL?.split("//")[1]?.substring(0, 4) || "none";
-        const msg = `KP ${signPct}${currentPct.toFixed(2)}% / ${signKrw}${currentDiff.toFixed(1)}원 (${targetValue}${unit}${indicator}) [ID:${shortId}] [DB:${dbHint}]`;
+        const fullDb = process.env.NEXT_PUBLIC_SUPABASE_URL || "none";
+        const msg = `KP ${signPct}${currentPct.toFixed(2)}% / ${signKrw}${currentDiff.toFixed(1)}원 (${targetValue}${unit}${indicator}) [ID:${shortId}] [DB_FULL:${fullDb}] [TOTAL:${alerts.length}]`;
         
         await sendTelegramAlert(msg);
         triggeredCount++;
