@@ -45,8 +45,7 @@ export async function GET(request: Request) {
     const { data: alerts, error } = await supabase
       .from("kimp_alerts")
       .select("*")
-      .eq("enabled", true)
-      .neq("id", "cache-buster-" + Date.now()); // 캐시 방지용 무의미한 조건
+      .eq("enabled", true);
 
     if (error) {
       console.error("[KIMP Alerts] DB 조회 에러:", error);
