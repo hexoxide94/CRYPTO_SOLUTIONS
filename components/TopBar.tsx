@@ -162,7 +162,7 @@ export default function TopBar() {
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {/* KIMP */}
           <div className="flex items-baseline gap-0.5 shrink-0">
-            <span className="text-[10px] text-muted-foreground font-medium leading-none">KP</span>
+            <span className="text-[10px] text-muted-foreground font-medium leading-none">KP <span className="opacity-50">v2.1</span></span>
             {kimpPct != null && kimpDiff != null ? (
               <span className={`text-[11px] font-bold leading-none tabular-nums ${kimpColor}`}>
                 {sign}{kimpPct.toFixed(2)}%
