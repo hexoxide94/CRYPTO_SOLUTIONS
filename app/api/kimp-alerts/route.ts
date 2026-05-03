@@ -114,15 +114,14 @@ export async function GET(request: Request) {
       }
 
       if (conditionMet) {
-        // 1회성인 경우 발송 전에 먼저 DB에서 삭제 (중복 발송 방지 및 유령 데이터 제거)
+        // 1회성인 경우 발송 후에 DB의 모든 알림을 강제로 싹 비웁니다 (유령 데이터 박멸)
         if (!alert.is_recurring) {
           const { error: delErr } = await supabase
             .from("kimp_alerts")
             .delete()
-            .eq("id", alert.id);
+            .neq("id", "00000000-0000-0000-0000-000000000000"); // 모든 데이터 삭제
           if (delErr) {
-            console.error(`[KIMP Alerts] 삭제 실패 (ID: ${alert.id}):`, delErr);
-            continue; 
+            console.error(`[KIMP Alerts] 전역 삭제 실패:`, delErr);
           }
         } else {
           // 반복 알림인 경우 시간만 갱신
