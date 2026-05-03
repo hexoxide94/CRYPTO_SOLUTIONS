@@ -24,8 +24,7 @@ export default function AlertPanel({ isOpen, onClose }: { isOpen: boolean; onClo
   const [formType, setFormType] = useState<"percent" | "krw">("krw");
   const [formCondition, setFormCondition] = useState<"gte" | "lte">("gte");
   const [formValue, setFormValue] = useState("");
-  const [formRecurring, setFormRecurring] = useState(false);
-  const [formInterval, setFormInterval] = useState("5");
+  const [formInterval, setFormInterval] = useState<string>("0"); // 0: 1회, 10, 60, 240
 
   useEffect(() => {
     if (isOpen) {
@@ -61,8 +60,7 @@ export default function AlertPanel({ isOpen, onClose }: { isOpen: boolean; onClo
     setFormType(alert.type);
     setFormCondition(alert.condition_type);
     setFormValue(String(alert.value));
-    setFormRecurring(alert.is_recurring);
-    setFormInterval(String(alert.interval_minutes));
+    setFormInterval(alert.is_recurring ? String(alert.interval_minutes) : "0");
     setEditingId(alert.id);
     setShowForm(true);
   }
@@ -71,8 +69,7 @@ export default function AlertPanel({ isOpen, onClose }: { isOpen: boolean; onClo
     setFormType("krw");
     setFormCondition("gte");
     setFormValue("");
-    setFormRecurring(false);
-    setFormInterval("5");
+    setFormInterval("0");
     setEditingId(null);
     setShowForm(false);
   }
@@ -80,37 +77,72 @@ export default function AlertPanel({ isOpen, onClose }: { isOpen: boolean; onClo
   async function handleSave() {
     if (!formValue) return alert("값을 입력해주세요.");
     
+    const interval = parseInt(formInterval);
     const payload = {
       type: formType,
       condition_type: formCondition,
       value: parseFloat(formValue),
-      is_recurring: formRecurring,
-      interval_minutes: formRecurring ? parseInt(formInterval) || 5 : 5,
+      is_recurring: interval > 0,
+      interval_minutes: interval,
       enabled: true
     };
 
+    console.log("[AlertPanel] Saving payload:", payload);
+
     if (editingId) {
       const { error } = await supabase.from("kimp_alerts").update(payload).eq("id", editingId);
-      if (error) alert("수정 실패");
+      if (error) {
+        console.error("[AlertPanel] Update error:", error);
+        alert("수정 실패: " + error.message);
+      }
     } else {
-      const { error } = await supabase.from("kimp_alerts").insert([payload]);
-      if (error) alert("추가 실패");
+  const { error } = await supabase.from("kimp_alerts").insert([payload]);
+      if (error) {
+        console.error("[AlertPanel] Insert error:", error);
+        alert("추가 실패: " + error.message);
+      }
     }
     
     resetForm();
     fetchAlerts();
   }
 
+  interface BtnGroupProps<T extends string> {
+    value: T;
+    options: { val: T; label: string }[];
+    onChange: (val: T) => void;
+  }
+
+  const BtnGroup = <T extends string>({ value, options, onChange }: BtnGroupProps<T>) => (
+    <div className="space-y-1.5">
+      <div className="flex bg-muted/50 p-1 rounded-lg gap-1">
+        {options.map((opt) => (
+          <button
+            key={opt.val}
+            onClick={() => onChange(opt.val)}
+            className={`flex-1 py-1.5 text-[11px] font-semibold rounded-md transition-all ${
+              value === opt.val 
+                ? "bg-background text-foreground shadow-sm" 
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div 
       className={`fixed top-[48px] left-0 right-0 max-w-md mx-auto bg-card/95 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] transition-all duration-300 origin-top overflow-hidden z-[100]
-        ${isOpen ? "max-h-[80vh] opacity-100 border-b border-l border-r border-border rounded-b-2xl" : "max-h-0 opacity-0 pointer-events-none"}`}
+        ${isOpen ? "max-h-[85vh] opacity-100 border-b border-l border-r border-border rounded-b-2xl" : "max-h-0 opacity-0 pointer-events-none"}`}
     >
-      <div className="p-4 max-h-[80vh] overflow-y-auto">
+      <div className="p-4 max-h-[85vh] overflow-y-auto custom-scrollbar">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Bell size={16} className="text-primary" />
-            <h3 className="font-semibold text-sm">텔레그램 김프 알림</h3>
+            <h3 className="font-semibold text-sm">김프 알림설정</h3>
           </div>
           <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="p-1 text-muted-foreground hover:text-foreground">
             <X size={16} />
@@ -119,92 +151,95 @@ export default function AlertPanel({ isOpen, onClose }: { isOpen: boolean; onClo
 
         {/* 폼 영역 */}
         {showForm ? (
-          <div className="bg-muted/50 rounded-lg p-3 mb-4 border border-border space-y-3 text-sm" onClick={e => e.stopPropagation()}>
-            <div className="flex gap-2">
-              <select className="bg-background border border-border rounded p-1.5 flex-1" value={formType} onChange={e => setFormType(e.target.value as "percent" | "krw")}>
-                <option value="krw">원(₩) 기준</option>
-                <option value="percent">퍼센트(%) 기준</option>
-              </select>
-              <select className="bg-background border border-border rounded p-1.5 flex-1" value={formCondition} onChange={e => setFormCondition(e.target.value as "gte" | "lte")}>
-                <option value="gte">이상 (크거나 같을때)</option>
-                <option value="lte">이하 (작거나 같을때)</option>
-              </select>
+          <div className="bg-muted/30 rounded-xl p-4 mb-5 border border-border/50 space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="grid grid-cols-2 gap-3">
+              <BtnGroup 
+                value={formType} 
+                onChange={setFormType}
+                options={[{ val: "krw", label: "원(₩)" }, { val: "percent", label: "퍼센트(%)" }]}
+              />
+              <BtnGroup 
+                value={formCondition} 
+                onChange={setFormCondition}
+                options={[{ val: "gte", label: "이상" }, { val: "lte", label: "이하" }]}
+              />
             </div>
             
-            <div className="flex gap-2 items-center">
+            <BtnGroup 
+              value={formInterval} 
+              onChange={setFormInterval}
+              options={[
+                { val: "0", label: "1회" }, 
+                { val: "10", label: "10m" }, 
+                { val: "60", label: "1h" }, 
+                { val: "240", label: "4h" }
+              ]}
+            />
+
+            <div className="flex gap-2 items-center bg-background border border-border rounded-lg px-3 py-2 focus-within:ring-2 ring-primary/20 transition-all">
               <input 
                 type="number" step="0.1" 
-                placeholder={formType === "krw" ? "예: 15.0 또는 -5.0" : "예: 1.5 또는 -0.5"}
-                className="bg-background border border-border rounded p-1.5 flex-1 w-full"
+                className="bg-transparent text-sm font-bold flex-1 focus:outline-none"
                 value={formValue} onChange={e => setFormValue(e.target.value)}
               />
-              <span className="text-muted-foreground font-medium">{formType === "krw" ? "원" : "%"}</span>
+              <span className="text-xs font-bold text-muted-foreground">{formType === "krw" ? "원" : "%"}</span>
             </div>
 
-            <div className="flex items-center gap-2 pt-1">
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="checkbox" checked={formRecurring} onChange={e => setFormRecurring(e.target.checked)} className="rounded" />
-                <span>반복 알림</span>
-              </label>
-              {formRecurring && (
-                <div className="flex items-center gap-1 ml-auto">
-                  <input type="number" min="1" className="bg-background border border-border rounded p-1 w-12 text-center" value={formInterval} onChange={e => setFormInterval(e.target.value)} />
-                  <span className="text-muted-foreground">분마다</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-2 pt-2 border-t border-border/50">
-              <button onClick={resetForm} className="flex-1 py-1.5 bg-muted rounded text-muted-foreground hover:text-foreground">취소</button>
-              <button onClick={handleSave} className="flex-1 py-1.5 bg-primary text-primary-foreground rounded font-medium flex items-center justify-center gap-1">
-                <Check size={14} /> 저장
+            <div className="flex gap-2 pt-1">
+              <button onClick={resetForm} className="flex-1 py-2 text-sm bg-muted rounded-lg text-muted-foreground font-semibold hover:text-foreground transition-colors">취소</button>
+              <button onClick={handleSave} className="flex-1 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-bold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity">
+                <Check size={14} /> 저장하기
               </button>
             </div>
           </div>
         ) : (
           <button 
             onClick={(e) => { e.stopPropagation(); setShowForm(true); }}
-            className="w-full py-2 mb-4 rounded-lg bg-muted border border-border/50 text-sm font-medium text-foreground flex items-center justify-center gap-1.5 hover:bg-muted/80 transition-colors"
+            className="w-full py-3 mb-5 rounded-xl bg-primary/10 border border-primary/20 text-sm font-bold text-primary flex items-center justify-center gap-2 hover:bg-primary/20 transition-all"
           >
-            <Plus size={14} /> 새 알림 추가
+            <Plus size={16} /> 새 알림 추가
           </button>
         )}
 
         {/* 리스트 영역 */}
-        <div className="space-y-2">
+        <div className="space-y-2 pb-2">
           {loading ? (
-            <p className="text-center text-xs text-muted-foreground py-4">불러오는 중...</p>
+            <div className="flex flex-col items-center py-10 gap-2">
+              <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              <p className="text-[11px] text-muted-foreground">알림 목록 불러오는 중...</p>
+            </div>
           ) : alerts.length === 0 ? (
-            <p className="text-center text-xs text-muted-foreground py-4">등록된 알림이 없습니다.</p>
+            <div className="text-center py-10 bg-muted/20 rounded-xl border border-dashed border-border">
+              <p className="text-[11px] text-muted-foreground">등록된 알림이 없습니다.</p>
+            </div>
           ) : (
             alerts.map(alert => (
-              <div key={alert.id} className="flex items-center justify-between p-2.5 rounded-lg bg-background border border-border/50" onClick={e => e.stopPropagation()}>
-                <div className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-1.5 text-sm font-semibold">
-                    <span className={alert.condition_type === "gte" ? "text-red-400" : "text-blue-400"}>
+              <div key={alert.id} className="flex items-center justify-between p-3 rounded-xl bg-background border border-border/50 hover:border-primary/30 transition-colors shadow-sm" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="flex items-center gap-2 text-sm font-bold shrink-0">
+                    <span className={alert.value >= 0 ? "text-sky-400" : "text-rose-400"}>
                       {alert.value > 0 ? `+${alert.value}` : alert.value}{alert.type === "percent" ? "%" : "원"}
                     </span>
-                    <span>{alert.condition_type === "gte" ? "이상" : "이하"}</span>
+                    <span className="text-xs text-foreground/80">{alert.condition_type === "gte" ? "이상" : "이하"}</span>
                   </div>
-                  <div className="text-[10px] text-muted-foreground flex gap-1.5">
-                    <span className="bg-muted px-1.5 py-0.5 rounded">
-                      {alert.is_recurring ? `${alert.interval_minutes}분 반복` : "1회성"}
-                    </span>
-                  </div>
+                  
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase whitespace-nowrap">
+                    {alert.interval_minutes === 0 ? "1회성" : alert.interval_minutes >= 60 ? `${alert.interval_minutes/60}H 반복` : `${alert.interval_minutes}M 반복`}
+                  </span>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1 shrink-0 ml-2">
                   <button 
                     onClick={() => handleToggle(alert.id, alert.enabled)}
-                    className={`w-9 h-5 rounded-full relative transition-colors ${alert.enabled ? "bg-primary" : "bg-muted-foreground/30"}`}
+                    className={`w-9 h-5 rounded-full relative transition-all duration-300 ${alert.enabled ? "bg-emerald-500" : "bg-red-400/20"}`}
                   >
-                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${alert.enabled ? "left-4.5" : "left-0.5"}`} style={{ left: alert.enabled ? '1.125rem' : '0.125rem' }} />
+                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${alert.enabled ? "left-4.5" : "left-0.5"}`} style={{ left: alert.enabled ? '1.125rem' : '0.125rem' }} />
                   </button>
-                  <button onClick={() => openEditForm(alert)} className="p-1.5 text-muted-foreground hover:text-foreground">
-                    <Edit2 size={14} />
+                  <button onClick={() => openEditForm(alert)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
+                    <Edit2 size={13} />
                   </button>
-                  <button onClick={() => handleDelete(alert.id)} className="p-1.5 text-muted-foreground hover:text-red-400">
-                    <Trash2 size={14} />
+                  <button onClick={() => handleDelete(alert.id)} className="p-1.5 text-muted-foreground hover:text-red-400 transition-colors">
+                    <Trash2 size={13} />
                   </button>
                 </div>
               </div>

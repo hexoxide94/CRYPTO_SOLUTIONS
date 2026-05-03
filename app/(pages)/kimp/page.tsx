@@ -801,7 +801,7 @@ export default function KimpPage() {
                 <div className="bg-background/40 dark:bg-black/20 rounded-xl p-2 border border-white/5 flex flex-col items-center justify-between">
                   <p className="text-[11px] text-muted-foreground mb-1">순포지션</p>
                   <p className="text-lg font-bold tabular-nums tracking-tight mb-2"
-                    style={{ color: netPosition === 0 ? "hsl(var(--foreground))" : "#22c55e" }}>
+                    style={{ color: netPosition === 0 ? "hsl(var(--foreground))" : "#c084fc" }}>
                     {netPosition > 0 ? "+" : ""}{netPosition.toLocaleString()}
                   </p>
                   <div className="w-full flex justify-between items-center text-[9px] text-muted-foreground tabular-nums">
