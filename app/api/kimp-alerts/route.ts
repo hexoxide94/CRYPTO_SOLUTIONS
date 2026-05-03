@@ -114,15 +114,15 @@ export async function GET(request: Request) {
       }
 
       if (conditionMet) {
-        // 1회성인 경우 발송 전에 먼저 DB에서 끈다 (중복 발송 방지)
+        // 1회성인 경우 발송 전에 먼저 DB에서 삭제 (중복 발송 방지 및 유령 데이터 제거)
         if (!alert.is_recurring) {
-          const { error: updErr } = await supabase
+          const { error: delErr } = await supabase
             .from("kimp_alerts")
-            .update({ enabled: false, last_triggered_at: new Date().toISOString() })
+            .delete()
             .eq("id", alert.id);
-          if (updErr) {
-            console.error(`[KIMP Alerts] 비활성화 실패 (ID: ${alert.id}):`, updErr);
-            continue; // DB 업데이트 실패 시 발송하지 않음 (안전제일)
+          if (delErr) {
+            console.error(`[KIMP Alerts] 삭제 실패 (ID: ${alert.id}):`, delErr);
+            continue; 
           }
         } else {
           // 반복 알림인 경우 시간만 갱신
