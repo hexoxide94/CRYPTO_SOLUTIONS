@@ -105,12 +105,12 @@ function getRangeStart(range: ChartRange | SummaryRange): number {
   return 0;
 }
 
-function computeXTicks(range: ChartRange, sortedAll: KimpTrade[]): number[] | undefined {
+function computeXTicks(range: ChartRange, filteredAll: KimpTrade[]): number[] | undefined {
   const now = Date.now();
 
   if (range === "all") {
-    if (sortedAll.length < 2) return undefined;
-    const timestamps = sortedAll.map(t => new Date(t.traded_at).getTime());
+    if (filteredAll.length < 2) return undefined;
+    const timestamps = filteredAll.map(t => new Date(t.traded_at).getTime());
     const minT = Math.min(...timestamps);
     const maxT = Math.max(...timestamps);
     const span = maxT - minT;
@@ -140,16 +140,16 @@ function computeXTicks(range: ChartRange, sortedAll: KimpTrade[]): number[] | un
   return ticks.length ? ticks : undefined;
 }
 
-function xTickFormatter(range: ChartRange, equalInterval: boolean, sortedAll: KimpTrade[]) {
+function xTickFormatter(range: ChartRange, equalInterval: boolean, filteredAll: KimpTrade[]) {
   const allSpanMs = (() => {
-    if (range !== "all" || sortedAll.length < 2) return Infinity;
-    const ts = sortedAll.map(t => new Date(t.traded_at).getTime());
+    if (range !== "all" || filteredAll.length < 2) return Infinity;
+    const ts = filteredAll.map(t => new Date(t.traded_at).getTime());
     return Math.max(...ts) - Math.min(...ts);
   })();
 
   return (v: number): string => {
     if (equalInterval) {
-      const t = sortedAll[Math.round(v)];
+      const t = filteredAll[Math.round(v)];
       if (!t) return "";
       const d = new Date(t.traded_at);
       return `${d.getMonth() + 1}/${d.getDate()}`;
@@ -240,12 +240,6 @@ export default function KimpPage() {
   const [listExpanded, setListExpanded]   = useState(true);
   const chartRef                          = useRef<HTMLDivElement>(null);
 
-  // ── 드래그 이동 상태 ──
-  const [manualXDomain, setManualXDomain] = useState<[number, number] | null>(null);
-  const [isPanning, setIsPanning]         = useState(false);
-  const [panStartX, setPanStartX]         = useState(0);
-  const [panStartDomain, setPanStartDomain] = useState<[number, number] | null>(null);
-
   const handleCapture = async () => {
     if (!chartRef.current) return;
     try {
@@ -258,51 +252,6 @@ export default function KimpPage() {
       console.error("[Capture Error]", error);
       alert("차트 캡처에 실패했습니다.");
     }
-  };
-
-  // ── 드래그 핸들러 ──
-  const onMouseDown = (e: React.MouseEvent) => {
-    if (!manualXDomain) return;
-    setIsPanning(true);
-    setPanStartX(e.clientX);
-    setPanStartDomain([...manualXDomain] as [number, number]);
-    if (chartRef.current) chartRef.current.style.cursor = "grabbing";
-  };
-
-  const onMouseMove = (e: React.MouseEvent) => {
-    if (!isPanning || !panStartDomain || !chartRef.current) return;
-    const deltaX = e.clientX - panStartX;
-    const chartWidth = chartRef.current.clientWidth - 40; // Approx margin
-    const domainWidth = panStartDomain[1] - panStartDomain[0];
-    const deltaValue = (deltaX / chartWidth) * domainWidth;
-    
-    setManualXDomain([panStartDomain[0] - deltaValue, panStartDomain[1] - deltaValue]);
-  };
-
-  const onMouseUp = () => {
-    setIsPanning(false);
-    if (chartRef.current) chartRef.current.style.cursor = "default";
-  };
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    if (!manualXDomain) return;
-    setIsPanning(true);
-    setPanStartX(e.touches[0].clientX);
-    setPanStartDomain([...manualXDomain] as [number, number]);
-  };
-
-  const onTouchMove = (e: React.TouchEvent) => {
-    if (!isPanning || !panStartDomain || !chartRef.current) return;
-    const deltaX = e.touches[0].clientX - panStartX;
-    const chartWidth = chartRef.current.clientWidth - 40;
-    const domainWidth = panStartDomain[1] - panStartDomain[0];
-    const deltaValue = (deltaX / chartWidth) * domainWidth;
-    
-    setManualXDomain([panStartDomain[0] - deltaValue, panStartDomain[1] - deltaValue]);
-  };
-
-  const onTouchEnd = () => {
-    setIsPanning(false);
   };
 
 
@@ -319,24 +268,6 @@ export default function KimpPage() {
   }, []);
 
   useEffect(() => { fetchTrades(); }, [fetchTrades]);
-
-  // ── 도메인 초기화 ──
-  useEffect(() => {
-    const rangeStart = getRangeStart(chartRange);
-    const now = Date.now();
-    
-    if (equalInterval) {
-      const filteredCount = rangeStart > 0 
-        ? trades.filter(t => new Date(t.traded_at).getTime() >= rangeStart).length 
-        : trades.length;
-      const startIdx = Math.max(0, trades.length - filteredCount);
-      const endIdx = Math.max(0, trades.length - 1);
-      setManualXDomain([startIdx, endIdx]);
-    } else {
-      const start = rangeStart > 0 ? rangeStart : (trades.length > 0 ? new Date(trades[trades.length-1].traded_at).getTime() : now);
-      setManualXDomain([start, now]);
-    }
-  }, [chartRange, trades, equalInterval]);
 
   // ── 요약 ────────────────────────────────────────────────────
   const openTotal   = trades.filter(t => t.status === "open").reduce((s, t) => s + Number(t.amount), 0);
@@ -382,11 +313,15 @@ export default function KimpPage() {
       ? calcKimp(t.sell_price_krw, Number(t.buy_price_usdt))
       : t.sell_price_krw - Number(t.buy_price_usdt);
 
+  const rangeStart  = getRangeStart(chartRange);
   const sortedAll   = [...trades].sort(
     (a, b) => new Date(a.traded_at).getTime() - new Date(b.traded_at).getTime()
   );
+  const filteredAll = rangeStart > 0
+    ? sortedAll.filter(t => new Date(t.traded_at).getTime() >= rangeStart)
+    : sortedAll;
 
-  const allChartPoints = sortedAll.map((t, i) => ({
+  const allChartPoints = filteredAll.map((t, i) => ({
     x: equalInterval ? i : new Date(t.traded_at).getTime(),
     y: getY(t),
     trade: t,
@@ -395,9 +330,9 @@ export default function KimpPage() {
   const chartOpen   = allChartPoints.filter(p => p.trade.status === "open");
   const chartClosed = allChartPoints.filter(p => p.trade.status === "closed");
 
-  const xDomain = manualXDomain || (equalInterval
-    ? ([0, Math.max(allChartPoints.length - 1, 1)] as [number, number])
-    : (["dataMin", "dataMax"] as [string, string]));
+  const xDomain = equalInterval
+    ? ([0, Math.max(filteredAll.length - 1, 1)] as [number, number])
+    : (["dataMin", "dataMax"] as [string, string]);
 
   const yTickFmt = chartMode === "kimp"
     ? (v: number) => `${v.toFixed(1)}%`
@@ -640,16 +575,7 @@ export default function KimpPage() {
             </div>
 
             {/* 그래프 */}
-            <div ref={chartRef} style={{ height: 270 }}
-              onMouseDown={onMouseDown}
-              onMouseMove={onMouseMove}
-              onMouseUp={onMouseUp}
-              onMouseLeave={onMouseUp}
-              onTouchStart={onTouchStart}
-              onTouchMove={onTouchMove}
-              onTouchEnd={onTouchEnd}
-              className="select-none touch-none"
-            >
+            <div ref={chartRef} style={{ height: 270 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={allChartPoints} margin={{ top: 4, right: 10, bottom: 0, left: -5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -657,8 +583,8 @@ export default function KimpPage() {
                     dataKey="x" type="number"
                     scale={equalInterval ? "linear" : "time"}
                     domain={xDomain}
-                    ticks={equalInterval ? undefined : computeXTicks(chartRange, sortedAll)}
-                    tickFormatter={xTickFormatter(chartRange, equalInterval, sortedAll)}
+                    ticks={equalInterval ? undefined : computeXTicks(chartRange, filteredAll)}
+                    tickFormatter={xTickFormatter(chartRange, equalInterval, filteredAll)}
                     tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                     tickLine={false}
                   />
@@ -668,28 +594,7 @@ export default function KimpPage() {
                     tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                     tickLine={false} axisLine={false} width={35}
                   />
-                  <Tooltip
-                    cursor={false}
-                    isAnimationActive={false}
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const t = payload[0].payload.trade as KimpTrade;
-                      const kimp = calcKimp(t.sell_price_krw, Number(t.buy_price_usdt));
-                      const diff = t.sell_price_krw - Number(t.buy_price_usdt);
-                      return (
-                        <div className="bg-card/90 backdrop-blur-md border border-border/50 rounded-lg p-2 shadow-xl text-[10px] space-y-1 z-50">
-                          <p className="font-semibold text-foreground pb-1 border-b border-border/50 mb-1">{fmtTime(t.traded_at)}</p>
-                          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-                            <span className="text-muted-foreground text-left">스테이블:</span> <span className="text-foreground text-right">{fmtStable(Number(t.sell_price_krw))}원</span>
-                            <span className="text-muted-foreground text-left">환율:</span> <span className="text-foreground text-right">{Number(t.buy_price_usdt).toFixed(1)}</span>
-                            <span className="text-muted-foreground text-left">김프:</span> <span className={`text-right font-medium ${kimp >= 0 ? "text-red-400" : "text-blue-400"}`}>{kimp >= 0 ? "+" : ""}{kimp.toFixed(2)}%</span>
-                            <span className="text-muted-foreground text-left">차이:</span> <span className="text-foreground text-right">{diff >= 0 ? "+" : ""}{diff.toFixed(1)}원</span>
-                            <span className="text-muted-foreground text-left">수량:</span> <span className="text-foreground text-right">{Number(t.amount).toLocaleString()}</span>
-                          </div>
-                        </div>
-                      );
-                    }}
-                  />
+
                   {chartOpen.length > 0 && (
                     <Scatter data={chartOpen} shape={makeShape("#EF4444")} />
                   )}
