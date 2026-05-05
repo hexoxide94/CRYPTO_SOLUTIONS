@@ -7,6 +7,12 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 export const metadata: Metadata = {
   title: "KIMP 자산관리",
   description: "개인 자산관리 웹앱",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "KIMP",
+  },
 };
 
 export const viewport: Viewport = {

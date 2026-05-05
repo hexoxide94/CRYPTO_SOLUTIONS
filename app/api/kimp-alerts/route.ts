@@ -1,31 +1,57 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { getKisToken, getKisMarketInfo, fetchKisRate } from "@/lib/kis";
+import webpush from "web-push";
 
 export const dynamic = "force-dynamic";
 
-// 텔레그램 알림 발송 함수
-async function sendTelegramAlert(message: string): Promise<void> {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-
-  if (!botToken || !chatId) {
-    console.error("[Telegram] 환경변수 누락");
-    return;
-  }
-
-  const response = await fetch(
-    `https://api.telegram.org/bot${botToken}/sendMessage`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: message }),
-    }
+// 웹 푸시 설정
+if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    "mailto:admin@crypto-solutions.com",
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
   );
+}
 
-  if (!response.ok) {
-    const error = await response.text();
-    console.error(`[Telegram] 전송 실패: ${error}`);
+// 웹 푸시 발송 함수
+async function sendWebPushAlert(title: string, body: string): Promise<void> {
+  try {
+    const { data: subscriptions, error } = await supabase
+      .from("push_subscriptions")
+      .select("*");
+
+    if (error || !subscriptions) {
+      console.error("[Web Push] 구독 정보 조회 실패:", error);
+      return;
+    }
+
+    const payload = JSON.stringify({ title, body, url: "/" });
+
+    const sendPromises = subscriptions.map((sub) =>
+      webpush.sendNotification(
+        {
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.p256dh,
+            auth: sub.auth,
+          },
+        },
+        payload
+      ).catch(e => {
+        if (e.statusCode === 410 || e.statusCode === 404) {
+          // 만료된 구독 삭제
+          console.log("[Web Push] 만료된 구독 삭제:", sub.endpoint);
+          return supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+        } else {
+          console.error("[Web Push] 발송 에러:", e);
+        }
+      })
+    );
+
+    await Promise.all(sendPromises);
+  } catch (error) {
+    console.error("[Web Push] 전체 발송 처리 실패:", error);
   }
 }
 
@@ -100,16 +126,10 @@ export async function GET(request: Request) {
 
       const targetValue = Number(alert.value);
       let conditionMet = false;
-      let currentPct = 0;
-      let currentDiff = 0;
 
       if (alert.condition_type === "gte") {
-        currentPct = kimpPctBid;
-        currentDiff = kimpDiffBid;
         conditionMet = (alert.type === "percent" ? kimpPctBid : kimpDiffBid) >= targetValue;
       } else {
-        currentPct = kimpPctAsk;
-        currentDiff = kimpDiffAsk;
         conditionMet = (alert.type === "percent" ? kimpPctAsk : kimpDiffAsk) <= targetValue;
       }
 
@@ -132,17 +152,10 @@ export async function GET(request: Request) {
         }
 
         // 메시지 발송
-        const signPct = currentPct >= 0 ? "+" : "";
-        const signKrw = currentDiff >= 0 ? "+" : "";
-        const indicator = alert.condition_type === "gte" ? "▲" : "▼";
-        const unit = alert.type === "percent" ? "%" : "원";
-        const shortId = alert.id.substring(0, 4);
-        const fullDb = process.env.NEXT_PUBLIC_SUPABASE_URL || "none";
-        const alertJson = JSON.stringify(alert);
-        const fullDb = process.env.NEXT_PUBLIC_SUPABASE_URL || "none";
-        const msg = `[GHOST ALERT DETECTED]\nDATA: ${alertJson}\nDB: ${fullDb}\nTOTAL: ${alerts.length}`;
+        const title = `[KIMP] ${alert.type === "krw" ? "원화" : "퍼센트"} 알림`;
+        const body = `현재 프리미엄이 목표치(${alert.value})에 도달했습니다!`;
         
-        await sendTelegramAlert(msg);
+        await sendWebPushAlert(title, body);
         triggeredCount++;
       }
     }

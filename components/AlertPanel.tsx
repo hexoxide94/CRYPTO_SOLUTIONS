@@ -19,6 +19,116 @@ export default function AlertPanel({ isOpen, onClose }: { isOpen: boolean; onClo
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [pushEnabled, setPushEnabled] = useState(false);
+
+  useEffect(() => {
+    // Check push subscription
+    if ("serviceWorker" in navigator && "PushManager" in window) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.pushManager.getSubscription().then(sub => {
+          if (sub) setPushEnabled(true);
+        });
+      });
+    }
+  }, []);
+
+  async function handleSubscribePush() {
+    try {
+      if (!("Notification" in window)) {
+        alert("이 브라우저는 알림 기능을 지원하지 않습니다.");
+        return;
+      }
+
+      setLoading(true); // 버튼 클릭 시 로딩 시작처럼 상태 변경 (ui 피드백)
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setLoading(false);
+        alert(`알림 권한이 거부되었습니다. (상태: ${permission})`);
+        return;
+      }
+
+      if (!("serviceWorker" in navigator)) {
+        setLoading(false);
+        alert("서비스 워커를 지원하지 않는 브라우저입니다.");
+        return;
+      }
+
+      let reg = await navigator.serviceWorker.getRegistration();
+      
+      // 망가진(비활성) 등록 상태라면 삭제 처리
+      if (reg && !reg.active && !reg.waiting && !reg.installing) {
+        console.log("망가진 서비스 워커 발견, 삭제 진행...");
+        await reg.unregister();
+        reg = undefined;
+      }
+
+      if (!reg) {
+        try {
+          console.log("서비스 워커 수동 등록 시도...");
+          reg = await navigator.serviceWorker.register('/sw.js');
+        } catch (err) {
+          console.error("SW Register Error:", err);
+        }
+      }
+
+      if (!reg) {
+        setLoading(false);
+        alert("서비스 워커 등록에 실패했습니다. 캐시를 지우거나 다른 브라우저를 사용해 주세요.");
+        return;
+      }
+
+      // 대기 중인 워커가 있으면 강제로 활성화 시도 (next-pwa 표준)
+      if (reg.waiting) {
+        console.log("이전 워커 정리 중...");
+        reg.waiting.postMessage({ type: "SKIP_WAITING" });
+        await new Promise(res => setTimeout(res, 1000));
+      }
+
+      // 서비스 워커가 활성화될 때까지 기다리는 로직
+      if (!reg.active) {
+        console.log("서비스 워커 활성화 대기 중...");
+        let retries = 0;
+        while (!reg.active && retries < 20) { // 최대 10초 대기
+          await new Promise(res => setTimeout(res, 500));
+          reg = await navigator.serviceWorker.getRegistration() || reg;
+          retries++;
+        }
+        
+        if (!reg.active) {
+          setLoading(false);
+          alert(`서비스 워커 활성화 실패. (현재 상태: installing=${!!reg.installing}, waiting=${!!reg.waiting})`);
+          return;
+        }
+      }
+
+      // 구독 정보 가져오기 (VAPID 키 필요)
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      });
+      
+      const res = await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sub)
+      });
+      
+      setLoading(false);
+      if (res.ok) {
+        setPushEnabled(true);
+        alert("푸시 알림이 활성화되었습니다!");
+      } else {
+        const errText = await res.text();
+        alert(`서버 저장 실패: ${errText}`);
+      }
+    } catch (e: unknown) {
+      setLoading(false);
+      console.error("Push subscribe error:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      alert(`알림 설정 중 오류가 발생했습니다: ${msg}`);
+    }
+  }
+
 
   // Form State
   const [formType, setFormType] = useState<"percent" | "krw">("krw");
@@ -195,10 +305,27 @@ export default function AlertPanel({ isOpen, onClose }: { isOpen: boolean; onClo
         ) : (
           <button 
             onClick={(e) => { e.stopPropagation(); setShowForm(true); }}
-            className="w-full py-3 mb-5 rounded-xl bg-primary/10 border border-primary/20 text-sm font-bold text-primary flex items-center justify-center gap-2 hover:bg-primary/20 transition-all"
+            className="w-full py-3 mb-3 rounded-xl bg-primary/10 border border-primary/20 text-sm font-bold text-primary flex items-center justify-center gap-2 hover:bg-primary/20 transition-all"
           >
             <Plus size={16} /> 새 알림 추가
           </button>
+        )}
+
+        {/* 푸시 알림 설정 버튼 */}
+        {!showForm && (
+          <div className="mb-5 flex items-center justify-between p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900">
+            <div className="flex flex-col">
+              <span className="text-[12px] font-bold text-indigo-700 dark:text-indigo-400">네이티브 푸시 알림</span>
+              <span className="text-[10px] text-indigo-500 dark:text-indigo-500/80">텔레그램 대신 기기로 직접 알림 받기</span>
+            </div>
+            {pushEnabled ? (
+              <span className="text-[11px] font-bold text-emerald-500 flex items-center gap-1"><Check size={12}/> 활성화됨</span>
+            ) : (
+              <button onClick={handleSubscribePush} className="text-[11px] font-bold px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+                권한 허용
+              </button>
+            )}
+          </div>
         )}
 
         {/* 리스트 영역 */}

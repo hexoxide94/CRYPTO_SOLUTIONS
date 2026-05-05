@@ -5,9 +5,10 @@ import { supabase } from "@/lib/supabase";
 import { useUsdtPrices } from "@/lib/usdt-context";
 import {
   ComposedChart, Scatter, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
+  Tooltip, ResponsiveContainer, Brush
 } from "recharts";
-import { Plus, Pencil, Trash2, X, Settings, ChevronDown, ChevronUp, Download } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Settings, ChevronDown, ChevronUp, Download, Camera } from "lucide-react";
+import html2canvas from "html2canvas";
 
 // ─── 상수 ──────────────────────────────────────────────────────
 const USDT_PER_DOMESTIC_CONTRACT  = 10_000;
@@ -44,8 +45,8 @@ interface FormState {
   traded_at:    string;
 }
 
-type ChartRange   = "1d" | "1w" | "2w" | "1m" | "all";
-type SummaryRange = "1d" | "1w" | "2w" | "1m";
+type ChartRange   = "1d" | "3d" | "1w" | "2w" | "1m" | "all";
+type SummaryRange = "1d" | "3d" | "1w" | "2w" | "1m";
 
 // ─── 유틸 ──────────────────────────────────────────────────────
 const toNum = (s: string) => Number(s.replace(/,/g, "")) || 0;
@@ -97,6 +98,7 @@ function formatKrwShort(num: number): string {
 function getRangeStart(range: ChartRange | SummaryRange): number {
   const now = Date.now();
   if (range === "1d") return now - 24 * 60 * 60 * 1000;
+  if (range === "3d") return now - 3 * 24 * 60 * 60 * 1000;
   if (range === "1w") return now - 7 * 24 * 60 * 60 * 1000;
   if (range === "2w") return now - 14 * 24 * 60 * 60 * 1000;
   if (range === "1m") return now - 30 * 24 * 60 * 60 * 1000;
@@ -166,7 +168,7 @@ function xTickFormatter(range: ChartRange, equalInterval: boolean, filteredAll: 
 }
 
 const CHART_RANGE_LABELS: Record<ChartRange, string> = {
-  "1d": "1일", "1w": "1주", "2w": "2주", "1m": "1달", "all": "전체",
+  "1d": "1일", "3d": "3일", "1w": "1주", "2w": "2주", "1m": "1달", "all": "전체",
 };
 
 function defaultForm(): FormState {
@@ -236,48 +238,23 @@ export default function KimpPage() {
   }>({ kimp: { min: "", max: "" }, diff: { min: "", max: "" } });
   const [summaryRange, setSummaryRange]   = useState<SummaryRange>("1w");
   const [listExpanded, setListExpanded]   = useState(true);
-  const [isResizing, setIsResizing]       = useState(false);
-  const [chartHeight, setChartHeight]     = useState(270);
-  const startYRef                         = useRef(0);
-  const startHeightRef                    = useRef(chartHeight);
+  const chartRef                          = useRef<HTMLDivElement>(null);
 
-  const startResizing = (e: React.MouseEvent | React.TouchEvent) => {
-    setIsResizing(true);
-    startYRef.current = "touches" in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
-    startHeightRef.current = chartHeight;
-    document.body.style.cursor = "ns-resize";
-    document.body.style.userSelect = "none";
+  const handleCapture = async () => {
+    if (!chartRef.current) return;
+    try {
+      const canvas = await html2canvas(chartRef.current, { backgroundColor: "#000" });
+      const link = document.createElement("a");
+      link.download = `kimp_chart_${new Date().toISOString().split("T")[0]}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch (error) {
+      console.error("[Capture Error]", error);
+      alert("차트 캡처에 실패했습니다.");
+    }
   };
 
-  useEffect(() => {
-    const onMove = (e: MouseEvent | TouchEvent) => {
-      if (!isResizing) return;
-      const clientY = "touches" in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
-      const deltaY = clientY - startYRef.current;
-      const newHeight = Math.max(100, Math.min(1000, startHeightRef.current + deltaY));
-      setChartHeight(newHeight);
-    };
 
-    const onUp = () => {
-      setIsResizing(false);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-
-    if (isResizing) {
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-      window.addEventListener("touchmove", onMove, { passive: false });
-      window.addEventListener("touchend", onUp);
-    }
-
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-      window.removeEventListener("touchmove", onMove);
-      window.removeEventListener("touchend", onUp);
-    };
-  }, [isResizing]);
 
 
   // ── 데이터 로드 ──────────────────────────────────────────────
@@ -567,18 +544,21 @@ export default function KimpPage() {
             {/* 툴바 */}
             <div className="flex items-center justify-between gap-1 mb-2">
               <div className="flex items-center gap-0.5">
-                {(["1d", "1w", "2w", "1m", "all"] as const).map(r => (
+                {(["1d", "3d", "1w", "2w", "1m", "all"] as const).map(r => (
                   <button key={r} onClick={() => setChartRange(r)} className={tbBtn(chartRange === r)}>
                     {CHART_RANGE_LABELS[r]}
                   </button>
                 ))}
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="flex gap-1">
-                  <LegendDot color="#EF4444" label="진입" />
-                  <LegendDot color="#3B82F6" label="청산" />
-                </div>
                 <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={handleCapture}
+                    className="p-1 mr-0.5 rounded transition-colors text-muted-foreground hover:text-foreground"
+                    title="차트 캡처"
+                  >
+                    <Camera size={14} />
+                  </button>
                   <button
                     onClick={() => setShowOptions(v => !v)}
                     className={`p-1 mr-0.5 rounded transition-colors ${showOptions ? "text-foreground bg-muted" : "text-muted-foreground hover:text-foreground"}`}
@@ -595,7 +575,7 @@ export default function KimpPage() {
             </div>
 
             {/* 그래프 */}
-            <div style={{ height: chartHeight }}>
+            <div ref={chartRef} style={{ height: 270 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={allChartPoints} margin={{ top: 4, right: 10, bottom: 0, left: -5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -647,17 +627,9 @@ export default function KimpPage() {
                   {showTrendLine && (
                     <Line type="monotone" dataKey="y" stroke="#9CA3AF" strokeWidth={1.5} dot={false} activeDot={false} opacity={0.5} />
                   )}
+                  <Brush dataKey="x" height={20} stroke="hsl(var(--muted-foreground))" fill="hsl(var(--background))" tickFormatter={xTickFormatter(chartRange, equalInterval, filteredAll)} />
                 </ComposedChart>
               </ResponsiveContainer>
-            </div>
-
-            {/* 높이 조절 핸들 */}
-            <div
-              className="absolute bottom-0 left-0 right-0 h-4 cursor-ns-resize flex items-center justify-center group z-20"
-              onMouseDown={startResizing}
-              onTouchStart={startResizing}
-            >
-              <div className="w-10 h-1 rounded-full bg-white/5 group-hover:bg-white/20 transition-colors" />
             </div>
 
             {/* 범례 및 설정은 상단 툴바로 이동됨 */}

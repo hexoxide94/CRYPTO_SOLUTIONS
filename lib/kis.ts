@@ -51,6 +51,21 @@ export async function getKisToken(): Promise<string | null> {
   return (await fetchKisToken()) ?? cachedToken;
 }
 
+// ─── 공휴일 목록 (하드코딩) ──────────────────────────────────────────
+const KOREAN_HOLIDAYS = [
+  "2026-01-01", // 신정
+  "2026-02-16", "2026-02-17", "2026-02-18", // 설날
+  "2026-03-02", // 삼일절 대체공휴일
+  "2026-05-05", // 어린이날
+  "2026-05-25", // 부처님오신날 대체공휴일
+  "2026-06-03", // 지방선거
+  "2026-08-17", // 광복절 대체공휴일
+  "2026-09-24", "2026-09-25", "2026-09-28", // 추석
+  "2026-10-05", // 개천절 대체공휴일
+  "2026-10-09", // 한글날
+  "2026-12-25"  // 기독탄신일
+];
+
 // ─── 아이콘 및 상태 판별 ───────────────────────────────────────────────
 export function getKisMarketInfo() {
   const now = new Date();
@@ -60,19 +75,34 @@ export function getKisMarketInfo() {
   const min = kstNow.getUTCMinutes();
   const day = kstNow.getUTCDay(); // 0: 일, 1: 월, ..., 6: 토
   const totalMin = hour * 60 + min;
+  
+  const yyyy = kstNow.getUTCFullYear();
+  const mm = String(kstNow.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(kstNow.getUTCDate()).padStart(2, '0');
+  const todayStr = `${yyyy}-${mm}-${dd}`;
+  
+  const isHoliday = KOREAN_HOLIDAYS.includes(todayStr);
 
   // 주간 장중: 월~금 08:45 ~ 15:45
-  const isWeekday = day >= 1 && day <= 5;
+  const isWeekday = day >= 1 && day <= 5 && !isHoliday;
   const isDayActive = isWeekday && (totalMin >= 8 * 60 + 45 && totalMin < 15 * 60 + 45);
 
-  // 야간 장중: 월~금 18:00 ~ 다음날 05:00 (토요일 새벽 05:00 포함)
-  const isNightActive = (isWeekday && totalMin >= 18 * 60) || (day >= 2 && day <= 6 && totalMin < 5 * 60);
+  // 야간 장중: 평일(공휴일 포함) 18:00 ~ 다음날 05:00 (휴일 다음날 새벽 05:00)
+  // 참고: 한국거래소 파생상품 야간시장은 글로벌 시장 연동이므로, 한국 휴일이라도 열릴 수 있음 (하지만 보통 같이 쉼). 
+  // 여기서는 사용자의 요구에 맞게, 주말이나 공휴일에는 직전 야간 종가를 부르도록 CM/NIGHT_CLOSE로 설정.
+  const isNightActive = (!isHoliday && day >= 1 && day <= 5 && totalMin >= 18 * 60) || 
+                        (day >= 2 && day <= 6 && totalMin < 5 * 60);
 
   let marketCode = "CF";
   let icon = "☀️";
   let session = "DAY_CLOSE";
 
-  if (isDayActive) {
+  if (isHoliday || day === 0 || day === 6) {
+    // 주말이나 공휴일인 경우 무조건 직전 야간 종가 표시
+    marketCode = "CM";
+    icon = "🌙";
+    session = "NIGHT_CLOSE";
+  } else if (isDayActive) {
     marketCode = "CF";
     icon = "☀️";
     session = "DAY_ACTIVE";
@@ -82,7 +112,7 @@ export function getKisMarketInfo() {
     session = "NIGHT_ACTIVE";
   } else {
     // 장외 시간대: 가장 최근에 끝난 장의 코드를 선택
-    if (isWeekday && totalMin >= 15 * 60 + 45 && totalMin < 18 * 60) {
+    if (totalMin >= 15 * 60 + 45 && totalMin < 18 * 60) {
       marketCode = "CF";
       icon = "☀️";
       session = "DAY_CLOSE";
