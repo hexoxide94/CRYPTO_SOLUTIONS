@@ -850,16 +850,6 @@ export default function KimpPage() {
   );
 }
 
-// ─── 범례 점 ────────────────────────────────────────────────────
-function LegendDot({ color, label }: { color: string; label: string }) {
-  return (
-    <div className="flex items-center gap-1">
-      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
-      <span className="text-[10px] text-muted-foreground">{label}</span>
-    </div>
-  );
-}
-
 // ─── 이력 행 ────────────────────────────────────────────────────
 function TradeRow({ trade, isEditMode, onLongPress, onEdit, onDelete }: {
   trade: KimpTrade; isEditMode: boolean; onLongPress: () => void; onEdit: () => void; onDelete: () => void;
