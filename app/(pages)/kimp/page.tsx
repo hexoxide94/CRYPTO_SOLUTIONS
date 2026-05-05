@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useUsdtPrices } from "@/lib/usdt-context";
 import {
   ComposedChart, Scatter, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Brush
+  Tooltip, ResponsiveContainer
 } from "recharts";
 import { Plus, Pencil, Trash2, X, Settings, ChevronDown, ChevronUp, Download, Camera } from "lucide-react";
 import html2canvas from "html2canvas";
@@ -336,7 +336,7 @@ export default function KimpPage() {
       const start = rangeStart > 0 ? rangeStart : (trades.length > 0 ? new Date(trades[trades.length-1].traded_at).getTime() : now);
       setManualXDomain([start, now]);
     }
-  }, [chartRange, trades.length, equalInterval]);
+  }, [chartRange, trades, equalInterval]);
 
   // ── 요약 ────────────────────────────────────────────────────
   const openTotal   = trades.filter(t => t.status === "open").reduce((s, t) => s + Number(t.amount), 0);
