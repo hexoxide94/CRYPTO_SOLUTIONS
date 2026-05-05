@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useUsdtPrices } from "@/lib/usdt-context";
 import {
   ComposedChart, Scatter, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer
+  ResponsiveContainer
 } from "recharts";
 import { Plus, Pencil, Trash2, X, Settings, ChevronDown, ChevronUp, Download, Camera } from "lucide-react";
 import html2canvas from "html2canvas";
