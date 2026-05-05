@@ -105,12 +105,12 @@ function getRangeStart(range: ChartRange | SummaryRange): number {
   return 0;
 }
 
-function computeXTicks(range: ChartRange, filteredAll: KimpTrade[]): number[] | undefined {
+function computeXTicks(range: ChartRange, sortedAll: KimpTrade[]): number[] | undefined {
   const now = Date.now();
 
   if (range === "all") {
-    if (filteredAll.length < 2) return undefined;
-    const timestamps = filteredAll.map(t => new Date(t.traded_at).getTime());
+    if (sortedAll.length < 2) return undefined;
+    const timestamps = sortedAll.map(t => new Date(t.traded_at).getTime());
     const minT = Math.min(...timestamps);
     const maxT = Math.max(...timestamps);
     const span = maxT - minT;
@@ -122,8 +122,8 @@ function computeXTicks(range: ChartRange, filteredAll: KimpTrade[]): number[] | 
 
   const rangeStart = getRangeStart(range);
 
-  if (range === "1w" || range === "2w" || range === "1m") {
-    const intervalMs = range === "1w" ? 86_400_000 : range === "2w" ? 2 * 86_400_000 : 5 * 86_400_000;
+  if (range === "1w" || range === "3d" || range === "2w" || range === "1m") {
+    const intervalMs = range === "1w" ? 86_400_000 : range === "3d" ? 43_200_000 : range === "2w" ? 2 * 86_400_000 : 5 * 86_400_000;
     const base = new Date(); base.setHours(0, 0, 0, 0);
     let t = base.getTime();
     while (t > rangeStart) t -= intervalMs;
@@ -140,16 +140,16 @@ function computeXTicks(range: ChartRange, filteredAll: KimpTrade[]): number[] | 
   return ticks.length ? ticks : undefined;
 }
 
-function xTickFormatter(range: ChartRange, equalInterval: boolean, filteredAll: KimpTrade[]) {
+function xTickFormatter(range: ChartRange, equalInterval: boolean, sortedAll: KimpTrade[]) {
   const allSpanMs = (() => {
-    if (range !== "all" || filteredAll.length < 2) return Infinity;
-    const ts = filteredAll.map(t => new Date(t.traded_at).getTime());
+    if (range !== "all" || sortedAll.length < 2) return Infinity;
+    const ts = sortedAll.map(t => new Date(t.traded_at).getTime());
     return Math.max(...ts) - Math.min(...ts);
   })();
 
   return (v: number): string => {
     if (equalInterval) {
-      const t = filteredAll[Math.round(v)];
+      const t = sortedAll[Math.round(v)];
       if (!t) return "";
       const d = new Date(t.traded_at);
       return `${d.getMonth() + 1}/${d.getDate()}`;
@@ -240,6 +240,12 @@ export default function KimpPage() {
   const [listExpanded, setListExpanded]   = useState(true);
   const chartRef                          = useRef<HTMLDivElement>(null);
 
+  // ── 드래그 이동 상태 ──
+  const [manualXDomain, setManualXDomain] = useState<[number, number] | null>(null);
+  const [isPanning, setIsPanning]         = useState(false);
+  const [panStartX, setPanStartX]         = useState(0);
+  const [panStartDomain, setPanStartDomain] = useState<[number, number] | null>(null);
+
   const handleCapture = async () => {
     if (!chartRef.current) return;
     try {
@@ -252,6 +258,51 @@ export default function KimpPage() {
       console.error("[Capture Error]", error);
       alert("차트 캡처에 실패했습니다.");
     }
+  };
+
+  // ── 드래그 핸들러 ──
+  const onMouseDown = (e: React.MouseEvent) => {
+    if (!manualXDomain) return;
+    setIsPanning(true);
+    setPanStartX(e.clientX);
+    setPanStartDomain([...manualXDomain] as [number, number]);
+    if (chartRef.current) chartRef.current.style.cursor = "grabbing";
+  };
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!isPanning || !panStartDomain || !chartRef.current) return;
+    const deltaX = e.clientX - panStartX;
+    const chartWidth = chartRef.current.clientWidth - 40; // Approx margin
+    const domainWidth = panStartDomain[1] - panStartDomain[0];
+    const deltaValue = (deltaX / chartWidth) * domainWidth;
+    
+    setManualXDomain([panStartDomain[0] - deltaValue, panStartDomain[1] - deltaValue]);
+  };
+
+  const onMouseUp = () => {
+    setIsPanning(false);
+    if (chartRef.current) chartRef.current.style.cursor = "default";
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (!manualXDomain) return;
+    setIsPanning(true);
+    setPanStartX(e.touches[0].clientX);
+    setPanStartDomain([...manualXDomain] as [number, number]);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!isPanning || !panStartDomain || !chartRef.current) return;
+    const deltaX = e.touches[0].clientX - panStartX;
+    const chartWidth = chartRef.current.clientWidth - 40;
+    const domainWidth = panStartDomain[1] - panStartDomain[0];
+    const deltaValue = (deltaX / chartWidth) * domainWidth;
+    
+    setManualXDomain([panStartDomain[0] - deltaValue, panStartDomain[1] - deltaValue]);
+  };
+
+  const onTouchEnd = () => {
+    setIsPanning(false);
   };
 
 
@@ -268,6 +319,24 @@ export default function KimpPage() {
   }, []);
 
   useEffect(() => { fetchTrades(); }, [fetchTrades]);
+
+  // ── 도메인 초기화 ──
+  useEffect(() => {
+    const rangeStart = getRangeStart(chartRange);
+    const now = Date.now();
+    
+    if (equalInterval) {
+      const filteredCount = rangeStart > 0 
+        ? trades.filter(t => new Date(t.traded_at).getTime() >= rangeStart).length 
+        : trades.length;
+      const startIdx = Math.max(0, trades.length - filteredCount);
+      const endIdx = Math.max(0, trades.length - 1);
+      setManualXDomain([startIdx, endIdx]);
+    } else {
+      const start = rangeStart > 0 ? rangeStart : (trades.length > 0 ? new Date(trades[trades.length-1].traded_at).getTime() : now);
+      setManualXDomain([start, now]);
+    }
+  }, [chartRange, trades.length, equalInterval]);
 
   // ── 요약 ────────────────────────────────────────────────────
   const openTotal   = trades.filter(t => t.status === "open").reduce((s, t) => s + Number(t.amount), 0);
@@ -313,15 +382,11 @@ export default function KimpPage() {
       ? calcKimp(t.sell_price_krw, Number(t.buy_price_usdt))
       : t.sell_price_krw - Number(t.buy_price_usdt);
 
-  const rangeStart  = getRangeStart(chartRange);
   const sortedAll   = [...trades].sort(
     (a, b) => new Date(a.traded_at).getTime() - new Date(b.traded_at).getTime()
   );
-  const filteredAll = rangeStart > 0
-    ? sortedAll.filter(t => new Date(t.traded_at).getTime() >= rangeStart)
-    : sortedAll;
 
-  const allChartPoints = filteredAll.map((t, i) => ({
+  const allChartPoints = sortedAll.map((t, i) => ({
     x: equalInterval ? i : new Date(t.traded_at).getTime(),
     y: getY(t),
     trade: t,
@@ -330,9 +395,9 @@ export default function KimpPage() {
   const chartOpen   = allChartPoints.filter(p => p.trade.status === "open");
   const chartClosed = allChartPoints.filter(p => p.trade.status === "closed");
 
-  const xDomain = equalInterval
-    ? ([0, Math.max(filteredAll.length - 1, 1)] as [number, number])
-    : (["dataMin", "dataMax"] as [string, string]);
+  const xDomain = manualXDomain || (equalInterval
+    ? ([0, Math.max(allChartPoints.length - 1, 1)] as [number, number])
+    : (["dataMin", "dataMax"] as [string, string]));
 
   const yTickFmt = chartMode === "kimp"
     ? (v: number) => `${v.toFixed(1)}%`
@@ -575,7 +640,16 @@ export default function KimpPage() {
             </div>
 
             {/* 그래프 */}
-            <div ref={chartRef} style={{ height: 270 }}>
+            <div ref={chartRef} style={{ height: 270 }}
+              onMouseDown={onMouseDown}
+              onMouseMove={onMouseMove}
+              onMouseUp={onMouseUp}
+              onMouseLeave={onMouseUp}
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
+              className="select-none touch-none"
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={allChartPoints} margin={{ top: 4, right: 10, bottom: 0, left: -5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -583,8 +657,8 @@ export default function KimpPage() {
                     dataKey="x" type="number"
                     scale={equalInterval ? "linear" : "time"}
                     domain={xDomain}
-                    ticks={equalInterval ? undefined : computeXTicks(chartRange, filteredAll)}
-                    tickFormatter={xTickFormatter(chartRange, equalInterval, filteredAll)}
+                    ticks={equalInterval ? undefined : computeXTicks(chartRange, sortedAll)}
+                    tickFormatter={xTickFormatter(chartRange, equalInterval, sortedAll)}
                     tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                     tickLine={false}
                   />
@@ -617,17 +691,14 @@ export default function KimpPage() {
                     }}
                   />
                   {chartOpen.length > 0 && (
-                    <Scatter data={chartOpen} shape={makeShape("#EF4444")}
-                      onClick={(d) => openSheet((d as unknown as { trade: KimpTrade }).trade)} />
+                    <Scatter data={chartOpen} shape={makeShape("#EF4444")} />
                   )}
                   {chartClosed.length > 0 && (
-                    <Scatter data={chartClosed} shape={makeShape("#3B82F6")}
-                      onClick={(d) => openSheet((d as unknown as { trade: KimpTrade }).trade)} />
+                    <Scatter data={chartClosed} shape={makeShape("#3B82F6")} />
                   )}
                   {showTrendLine && (
                     <Line type="monotone" dataKey="y" stroke="#9CA3AF" strokeWidth={1.5} dot={false} activeDot={false} opacity={0.5} />
                   )}
-                  <Brush dataKey="x" height={20} stroke="hsl(var(--muted-foreground))" fill="hsl(var(--background))" tickFormatter={xTickFormatter(chartRange, equalInterval, filteredAll)} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
