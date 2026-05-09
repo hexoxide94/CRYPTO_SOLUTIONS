@@ -94,36 +94,40 @@ export function getKisMarketInfo() {
                         (day >= 2 && day <= 6 && totalMin < 5 * 60);
 
   let marketCode = "CF";
+  let fidCondMrktDivCode = "J";
   let icon = "☀️";
   let session = "DAY_CLOSE";
 
   if (isHoliday || day === 0 || day === 6) {
-    // 주말이나 공휴일인 경우 무조건 직전 야간 종가 표시
     marketCode = "CM";
+    fidCondMrktDivCode = "N";
     icon = "🌙";
     session = "NIGHT_CLOSE";
   } else if (isDayActive) {
     marketCode = "CF";
+    fidCondMrktDivCode = "J";
     icon = "☀️";
     session = "DAY_ACTIVE";
   } else if (isNightActive) {
     marketCode = "CM";
+    fidCondMrktDivCode = "N";
     icon = "🌙";
     session = "NIGHT_ACTIVE";
   } else {
-    // 장외 시간대: 가장 최근에 끝난 장의 코드를 선택
     if (totalMin >= 15 * 60 + 45 && totalMin < 18 * 60) {
       marketCode = "CF";
+      fidCondMrktDivCode = "J";
       icon = "☀️";
       session = "DAY_CLOSE";
     } else {
       marketCode = "CM";
+      fidCondMrktDivCode = "N";
       icon = "🌙";
       session = "NIGHT_CLOSE";
     }
   }
 
-  return { marketCode, icon, session };
+  return { marketCode, fidCondMrktDivCode, icon, session };
 }
 
 // ─── KIS 달러선물 조회 ───────────────────────────────────────────────

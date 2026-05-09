@@ -45,7 +45,7 @@ interface FormState {
   traded_at:    string;
 }
 
-type ChartRange   = "1d" | "3d" | "1w" | "2w" | "1m" | "all";
+type ChartRange   = "1d" | "3d" | "1w" | "2w" | "1m" | "all" | "custom";
 type SummaryRange = "1d" | "3d" | "1w" | "2w" | "1m";
 
 // ─── 유틸 ──────────────────────────────────────────────────────
@@ -168,7 +168,7 @@ function xTickFormatter(range: ChartRange, equalInterval: boolean, filteredAll: 
 }
 
 const CHART_RANGE_LABELS: Record<ChartRange, string> = {
-  "1d": "1일", "3d": "3일", "1w": "1주", "2w": "2주", "1m": "1달", "all": "전체",
+  "1d": "1일", "3d": "3일", "1w": "1주", "2w": "2주", "1m": "1달", "all": "전체", "custom": "직접",
 };
 
 function defaultForm(): FormState {
@@ -233,7 +233,8 @@ export default function KimpPage() {
   const [saving, setSaving]               = useState(false);
   const [chartMode, setChartMode]         = useState<"kimp" | "diff">("kimp");
   const [chartRange, setChartRange]       = useState<ChartRange>("1w");
-  const [equalInterval]                   = useState(false);
+  const [equalInterval, setEqualInterval] = useState(false);
+  const [customRange, setCustomRange] = useState({ start: "", end: "" });
   const [showOptions, setShowOptions]     = useState(false);
   const [showContracts, setShowContracts] = useState(true);
   const [showKimpLabel, setShowKimpLabel] = useState(true);
@@ -346,9 +347,21 @@ export default function KimpPage() {
   const sortedAll   = [...trades].sort(
     (a, b) => new Date(a.traded_at).getTime() - new Date(b.traded_at).getTime()
   );
-  const filteredAll = rangeStart > 0
-    ? sortedAll.filter(t => new Date(t.traded_at).getTime() >= rangeStart)
-    : sortedAll;
+  
+  const filteredAll = (() => {
+    if (chartRange === "all") return sortedAll;
+    if (chartRange === "custom") {
+      const s = customRange.start ? new Date(customRange.start).getTime() : 0;
+      const e = customRange.end ? new Date(customRange.end + "T23:59:59").getTime() : Infinity;
+      return sortedAll.filter(t => {
+        const time = new Date(t.traded_at).getTime();
+        return time >= s && time <= e;
+      });
+    }
+    return rangeStart > 0
+      ? sortedAll.filter(t => new Date(t.traded_at).getTime() >= rangeStart)
+      : sortedAll;
+  })();
 
   const allChartPoints = filteredAll.map((t, i) => ({
     x: equalInterval ? i : new Date(t.traded_at).getTime(),
@@ -570,22 +583,46 @@ export default function KimpPage() {
   return (
     <div className="relative flex flex-col min-h-full">
       {/* ── 전역 기간 선택기 (상단) ── */}
-      <div className="px-3 pt-1 pb-1 mb-1">
-        <div className="flex items-center justify-between bg-card/50 backdrop-blur-sm border border-border rounded-xl p-1.5 shadow-sm">
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-            {(["1d", "3d", "1w", "2w", "1m", "all"] as const).map(r => (
-              <button
-                key={r}
-                onClick={() => { setChartRange(r); setSummaryRange(r === "all" ? "1m" : r as SummaryRange); }}
-                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
-                  chartRange === r 
-                    ? "bg-primary text-primary-foreground shadow-md scale-[1.02]" 
-                    : "text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {CHART_RANGE_LABELS[r]}
-              </button>
-            ))}
+      <div className="px-1.5 pt-1.5 pb-1">
+        <div className="rounded-xl p-1.5 shadow-lg backdrop-blur-md border border-white/10 flex flex-col gap-1.5"
+          style={{ background: "linear-gradient(145deg, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0.05) 100%)" }}>
+          
+          <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-0.5">
+              {(["1d", "3d", "1w", "2w", "1m", "all"] as const).map(r => (
+                <button
+                  key={r}
+                  onClick={() => { 
+                    setChartRange(r); 
+                    setSummaryRange(r === "all" || r === "3d" ? "1m" : r as SummaryRange); 
+                    if (viewMode.market) setEqualInterval(false);
+                  }}
+                  className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${
+                    chartRange === r 
+                      ? "bg-foreground text-background shadow-sm" 
+                      : "text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {CHART_RANGE_LABELS[r]}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <input 
+                type="date" 
+                value={customRange.start}
+                onChange={e => { setCustomRange(prev => ({ ...prev, start: e.target.value })); setChartRange("custom"); }}
+                className="bg-background/40 border border-white/5 rounded px-1 py-0.5 text-[9px] text-foreground outline-none"
+              />
+              <span className="text-[9px] text-muted-foreground">~</span>
+              <input 
+                type="date" 
+                value={customRange.end}
+                onChange={e => { setCustomRange(prev => ({ ...prev, end: e.target.value })); setChartRange("custom"); }}
+                className="bg-background/40 border border-white/5 rounded px-1 py-0.5 text-[9px] text-foreground outline-none"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -632,6 +669,9 @@ export default function KimpPage() {
                   <div className="flex gap-0.5">
                     <button onClick={() => setChartMode("kimp")}         className={tbBtn(chartMode === "kimp")}>%</button>
                     <button onClick={() => setChartMode("diff")}         className={tbBtn(chartMode === "diff")}>원</button>
+                    {!viewMode.market && (
+                      <button onClick={() => setEqualInterval(v => !v)}    className={tbBtn(equalInterval)}>등간격</button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -644,10 +684,10 @@ export default function KimpPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="x" type="number"
-                    scale="time"
+                    scale={equalInterval ? "linear" : "time"}
                     domain={xDomain}
-                    ticks={computeXTicks(chartRange, filteredAll)}
-                    tickFormatter={xTickFormatter(chartRange, false, filteredAll)}
+                    ticks={equalInterval ? undefined : computeXTicks(chartRange, filteredAll)}
+                    tickFormatter={xTickFormatter(chartRange, equalInterval, filteredAll)}
                     tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                     tickLine={false}
                   />
@@ -758,16 +798,9 @@ export default function KimpPage() {
             {/* 요약 카드 */}
             <div className="rounded-xl p-2.5 shadow-lg backdrop-blur-md border border-white/10"
               style={{ background: "linear-gradient(145deg, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0.05) 100%)" }}>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground font-medium">최근 김프 통계</span>
-                  <div className="flex gap-1">
-                    {(["1d", "1w", "2w", "1m"] as const).map(r => (
-                      <button key={r} onClick={() => setSummaryRange(r)} className={tbBtn(summaryRange === r)}>
-                        {r === "1d" ? "1일" : r === "1w" ? "1주" : r === "2w" ? "2주" : "1달"}
-                      </button>
-                    ))}
-                  </div>
+                  <span className="text-[10px] text-foreground font-bold italic opacity-80">SUMMARY STATISTICS</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <button
