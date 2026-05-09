@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     const token = await getKisToken();
     if (!token) throw new Error("KIS token failed");
 
-    const { fidCondMrktDivCode } = getKisMarketInfo();
+    const { marketCode } = getKisMarketInfo();
 
     // 1. 기간별 Coinone 및 KIS 파라미터 설정
     let coinoneInterval = "1h";
@@ -56,8 +56,8 @@ export async function GET(request: Request) {
     const [coinoneRes, kisHistory] = await Promise.all([
       fetch(coinoneUrl, { cache: "no-store" }),
       useMinuteKis 
-        ? fetchKisMinuteHistory(token, fidCondMrktDivCode) as Promise<KisMinuteData[]>
-        : fetchKisHistory(token, fidCondMrktDivCode, "D") as Promise<KisDailyData[]>
+        ? fetchKisMinuteHistory(token, marketCode) as Promise<KisMinuteData[]>
+        : fetchKisHistory(token, marketCode, "D") as Promise<KisDailyData[]>
     ]);
 
     if (!coinoneRes.ok) throw new Error("Coinone API failed");

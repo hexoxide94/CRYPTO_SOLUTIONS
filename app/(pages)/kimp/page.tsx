@@ -581,23 +581,22 @@ export default function KimpPage() {
 
   // ── 렌더 ────────────────────────────────────────────────────
   return (
-    <div className="relative flex flex-col min-h-full">
+    <div className="relative flex flex-col min-h-full px-3 pt-2 gap-2 pb-24">
       {/* ── 전역 기간 선택기 (상단) ── */}
-      <div className="px-1.5 pt-1.5 pb-1">
-        <div className="rounded-xl p-1.5 shadow-lg backdrop-blur-md border border-white/10 flex flex-col gap-1.5"
-          style={{ background: "linear-gradient(145deg, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0.05) 100%)" }}>
-          
-          <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+      <div className="rounded-xl p-1.5 shadow-lg backdrop-blur-md border border-white/10 flex flex-col gap-1.5"
+        style={{ background: "linear-gradient(145deg, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0.05) 100%)" }}>
+        
+        <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar pr-0.5">
             <div className="flex items-center gap-0.5">
-              {(["1d", "3d", "1w", "2w", "1m", "all"] as const).map(r => (
+              {(["1d", "3d", "1w", "2w"] as const).map(r => (
                 <button
                   key={r}
                   onClick={() => { 
                     setChartRange(r); 
-                    setSummaryRange(r === "all" || r === "3d" ? "1m" : r as SummaryRange); 
+                    setSummaryRange(r as SummaryRange); 
                     if (viewMode.market) setEqualInterval(false);
                   }}
-                  className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${
+                  className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all ${
                     chartRange === r 
                       ? "bg-foreground text-background shadow-sm" 
                       : "text-muted-foreground hover:bg-muted"
@@ -608,26 +607,25 @@ export default function KimpPage() {
               ))}
             </div>
 
-            <div className="flex items-center gap-1 shrink-0">
-              <input 
-                type="date" 
-                value={customRange.start}
-                onChange={e => { setCustomRange(prev => ({ ...prev, start: e.target.value })); setChartRange("custom"); }}
-                className="bg-background/40 border border-white/5 rounded px-1 py-0.5 text-[9px] text-foreground outline-none"
-              />
-              <span className="text-[9px] text-muted-foreground">~</span>
-              <input 
-                type="date" 
-                value={customRange.end}
-                onChange={e => { setCustomRange(prev => ({ ...prev, end: e.target.value })); setChartRange("custom"); }}
-                className="bg-background/40 border border-white/5 rounded px-1 py-0.5 text-[9px] text-foreground outline-none"
-              />
-            </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <input 
+              type="date" 
+              value={customRange.start}
+              onChange={e => { setCustomRange(prev => ({ ...prev, start: e.target.value })); setChartRange("custom"); }}
+              className="bg-background/40 border border-white/5 rounded px-1 py-0.5 text-[9px] text-foreground outline-none"
+            />
+            <span className="text-[9px] text-muted-foreground">~</span>
+            <input 
+              type="date" 
+              value={customRange.end}
+              onChange={e => { setCustomRange(prev => ({ ...prev, end: e.target.value })); setChartRange("custom"); }}
+              className="bg-background/40 border border-white/5 rounded px-1 py-0.5 text-[9px] text-foreground outline-none"
+            />
           </div>
         </div>
       </div>
 
-      <div className="flex-1 px-1 py-0 flex flex-col gap-1.5 pb-24">
+      <div className="flex flex-col gap-2">
 
         {/* ── 차트 ── */}
         {trades.length > 0 && (
