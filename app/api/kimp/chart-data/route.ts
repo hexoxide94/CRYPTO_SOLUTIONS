@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getKisToken, fetchKisHistory, fetchKisMinuteHistory, getKisMarketInfo } from "@/lib/kis";
+import { getKisToken, fetchKisHistory, fetchKisMinuteHistory } from "@/lib/kis";
 
 export const dynamic = "force-dynamic";
 
