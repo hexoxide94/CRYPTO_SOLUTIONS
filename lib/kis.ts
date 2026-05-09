@@ -167,3 +167,79 @@ export async function fetchKisRate(token: string, marketCode: string): Promise<n
     return null;
   }
 }
+
+// ─── KIS 달러선물 과거 데이터 조회 (Daily) ───────────────────────────
+export async function fetchKisHistory(token: string, marketCode: string, periodCode: "D" | "W" | "M" = "D"): Promise<unknown> {
+  const appkey = process.env.KIS_APP_KEY!;
+  const appsecret = process.env.KIS_APP_SECRET!;
+
+  const url = new URL("https://openapi.koreainvestment.com:9443/uapi/domestic-futureoption/v1/quotations/inquire-daily-chartprice");
+  url.searchParams.set("FID_COND_MRKT_DIV_CODE", marketCode);
+  url.searchParams.set("FID_INPUT_ISCD", "A75605"); // USD Futures
+  url.searchParams.set("FID_PERIOD_DIV_CODE", periodCode);
+  url.searchParams.set("FID_ORG_ADJ_PRC", "0");
+
+  try {
+    const res = await fetch(url.toString(), {
+      headers: {
+        "content-type": "application/json",
+        "authorization": `Bearer ${token}`,
+        "appkey": appkey,
+        "appsecret": appsecret,
+        "tr_id": "FHKIF01010100",
+        "custtype": "P",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+      },
+      cache: "no-store",
+    });
+    const data = await res.json();
+
+    if (data?.rt_cd !== "0") {
+      console.error("[KIS History API Error]", data?.msg1, data?.msg_cd);
+      return null;
+    }
+
+    return data.output2; // 일별 시세 배열
+  } catch (error) {
+    console.error("[KIS History Fetch Error]", error);
+    return null;
+  }
+}
+
+// ─── KIS 달러선물 과거 데이터 조회 (Minute) ──────────────────────────
+export async function fetchKisMinuteHistory(token: string, marketCode: string): Promise<unknown> {
+  const appkey = process.env.KIS_APP_KEY!;
+  const appsecret = process.env.KIS_APP_SECRET!;
+
+  const url = new URL("https://openapi.koreainvestment.com:9443/uapi/domestic-futureoption/v1/quotations/inquire-time-itemchartprice");
+  url.searchParams.set("FID_COND_MRKT_DIV_CODE", marketCode);
+  url.searchParams.set("FID_INPUT_ISCD", "A75605"); // USD Futures
+  url.searchParams.set("FID_ETC_CLS_CODE", "");
+  url.searchParams.set("FID_PW_DATA_INCU_YN", "Y");
+
+  try {
+    const res = await fetch(url.toString(), {
+      headers: {
+        "content-type": "application/json",
+        "authorization": `Bearer ${token}`,
+        "appkey": appkey,
+        "appsecret": appsecret,
+        "tr_id": "FHKIF01010200", // Domestic Futures Minute Chart
+        "custtype": "P",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+      },
+      cache: "no-store",
+    });
+    const data = await res.json();
+
+    if (data?.rt_cd !== "0") {
+      console.error("[KIS Minute History API Error]", data?.msg1, data?.msg_cd);
+      return null;
+    }
+
+    return data.output2; // 분별 시세 배열
+  } catch (error) {
+    console.error("[KIS Minute History Fetch Error]", error);
+    return null;
+  }
+}

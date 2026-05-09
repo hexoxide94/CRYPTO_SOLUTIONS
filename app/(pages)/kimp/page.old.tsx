@@ -214,13 +214,6 @@ function applyFee(stable: number, dollar: number, feeStable: number, feeDollar: 
   }
 }
 
-interface MarketPoint {
-  timestamp: number;
-  kimp: number;
-  domestic: number;
-  overseas: number;
-}
-
 // ═══════════════════════════════════════════════════════════════
 export default function KimpPage() {
   const { usdt: usdtPrices } = useUsdtPrices();
@@ -233,7 +226,7 @@ export default function KimpPage() {
   const [saving, setSaving]               = useState(false);
   const [chartMode, setChartMode]         = useState<"kimp" | "diff">("kimp");
   const [chartRange, setChartRange]       = useState<ChartRange>("1w");
-  const [equalInterval]                   = useState(false);
+  const [equalInterval, setEqualInterval] = useState(true);
   const [showOptions, setShowOptions]     = useState(false);
   const [showContracts, setShowContracts] = useState(true);
   const [showKimpLabel, setShowKimpLabel] = useState(true);
@@ -246,28 +239,6 @@ export default function KimpPage() {
   const [summaryRange, setSummaryRange]   = useState<SummaryRange>("1w");
   const [listExpanded, setListExpanded]   = useState(true);
   const chartRef                          = useRef<HTMLDivElement>(null);
-
-  // ── 시장 김프 데이터 ──────────────────────────────────────────
-  const [marketData, setMarketData] = useState<MarketPoint[]>([]);
-  const [viewMode, setViewMode] = useState({ trades: true, market: true });
-  const [marketLoading, setMarketLoading] = useState(false);
-
-  const fetchMarketChartData = useCallback(async () => {
-    setMarketLoading(true);
-    try {
-      const res = await fetch(`/api/kimp/chart-data?range=${chartRange}`);
-      const data = await res.json();
-      if (data.chartData) setMarketData(data.chartData);
-    } catch (err) {
-      console.error("[fetchMarketChartData] Error:", err);
-    } finally {
-      setMarketLoading(false);
-    }
-  }, [chartRange]);
-
-  useEffect(() => {
-    fetchMarketChartData();
-  }, [fetchMarketChartData]);
 
   const handleCapture = async () => {
     if (!chartRef.current) return;
@@ -359,15 +330,9 @@ export default function KimpPage() {
   const chartOpen   = allChartPoints.filter(p => p.trade.status === "open");
   const chartClosed = allChartPoints.filter(p => p.trade.status === "closed");
 
-  // 시장 데이터 가공
-  const marketChartPoints = marketData.map(d => ({
-    x: d.timestamp,
-    y: chartMode === "kimp" ? d.kimp : d.domestic - d.overseas,
-    isMarket: true,
-    detail: d
-  }));
-
-  const xDomain = (["dataMin", "dataMax"] as [string, string]);
+  const xDomain = equalInterval
+    ? ([0, Math.max(filteredAll.length - 1, 1)] as [number, number])
+    : (["dataMin", "dataMax"] as [string, string]);
 
   const yTickFmt = chartMode === "kimp"
     ? (v: number) => `${v.toFixed(1)}%`
@@ -569,28 +534,7 @@ export default function KimpPage() {
   // ── 렌더 ────────────────────────────────────────────────────
   return (
     <div className="relative flex flex-col min-h-full">
-      {/* ── 전역 기간 선택기 (상단) ── */}
-      <div className="px-3 pt-1 pb-1 mb-1">
-        <div className="flex items-center justify-between bg-card/50 backdrop-blur-sm border border-border rounded-xl p-1.5 shadow-sm">
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-            {(["1d", "3d", "1w", "2w", "1m", "all"] as const).map(r => (
-              <button
-                key={r}
-                onClick={() => { setChartRange(r); setSummaryRange(r === "all" ? "1m" : r as SummaryRange); }}
-                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
-                  chartRange === r 
-                    ? "bg-primary text-primary-foreground shadow-md scale-[1.02]" 
-                    : "text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {CHART_RANGE_LABELS[r]}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 px-1 py-0 flex flex-col gap-1.5 pb-24">
+      <div className="flex-1 px-1 py-1 flex flex-col gap-1.5 pb-24">
 
         {/* ── 차트 ── */}
         {trades.length > 0 && (
@@ -599,20 +543,12 @@ export default function KimpPage() {
 
             {/* 툴바 */}
             <div className="flex items-center justify-between gap-1 mb-2">
-              <div className="flex items-center gap-1">
-                <button 
-                  onClick={() => setViewMode(v => ({ ...v, trades: !v.trades }))} 
-                  className={tbBtn(viewMode.trades)}
-                >
-                  매매 기록
-                </button>
-                <button 
-                  onClick={() => setViewMode(v => ({ ...v, market: !v.market }))} 
-                  className={tbBtn(viewMode.market)}
-                >
-                  김프 차트
-                </button>
-                {marketLoading && <span className="ml-1 text-[9px] text-muted-foreground animate-pulse">로딩중...</span>}
+              <div className="flex items-center gap-0.5">
+                {(["1d", "3d", "1w", "2w", "1m", "all"] as const).map(r => (
+                  <button key={r} onClick={() => setChartRange(r)} className={tbBtn(chartRange === r)}>
+                    {CHART_RANGE_LABELS[r]}
+                  </button>
+                ))}
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="flex items-center gap-0.5">
@@ -632,6 +568,7 @@ export default function KimpPage() {
                   <div className="flex gap-0.5">
                     <button onClick={() => setChartMode("kimp")}         className={tbBtn(chartMode === "kimp")}>%</button>
                     <button onClick={() => setChartMode("diff")}         className={tbBtn(chartMode === "diff")}>원</button>
+                    <button onClick={() => setEqualInterval(v => !v)}    className={tbBtn(equalInterval)}>등간격</button>
                   </div>
                 </div>
               </div>
@@ -644,10 +581,10 @@ export default function KimpPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="x" type="number"
-                    scale="time"
+                    scale={equalInterval ? "linear" : "time"}
                     domain={xDomain}
-                    ticks={computeXTicks(chartRange, filteredAll)}
-                    tickFormatter={xTickFormatter(chartRange, false, filteredAll)}
+                    ticks={equalInterval ? undefined : computeXTicks(chartRange, filteredAll)}
+                    tickFormatter={xTickFormatter(chartRange, equalInterval, filteredAll)}
                     tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                     tickLine={false}
                   />
@@ -658,27 +595,14 @@ export default function KimpPage() {
                     tickLine={false} axisLine={false} width={35}
                   />
 
-                  {viewMode.market && marketChartPoints.length > 0 && (
-                    <Line
-                      type="monotone"
-                      data={marketChartPoints}
-                      dataKey="y"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={1.5}
-                      dot={false}
-                      activeDot={{ r: 4, strokeWidth: 0 }}
-                      opacity={0.8}
-                    />
-                  )}
-
-                  {viewMode.trades && chartOpen.length > 0 && (
+                  {chartOpen.length > 0 && (
                     <Scatter data={chartOpen} shape={makeShape("#EF4444")} />
                   )}
-                  {viewMode.trades && chartClosed.length > 0 && (
+                  {chartClosed.length > 0 && (
                     <Scatter data={chartClosed} shape={makeShape("#3B82F6")} />
                   )}
-                  {showTrendLine && viewMode.trades && (
-                    <Line type="monotone" data={allChartPoints} dataKey="y" stroke="#9CA3AF" strokeWidth={1} dot={false} activeDot={false} opacity={0.3} />
+                  {showTrendLine && (
+                    <Line type="monotone" dataKey="y" stroke="#9CA3AF" strokeWidth={1.5} dot={false} activeDot={false} opacity={0.5} />
                   )}
                 </ComposedChart>
               </ResponsiveContainer>
