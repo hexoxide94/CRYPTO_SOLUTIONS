@@ -581,7 +581,7 @@ export default function KimpPage() {
 
   // ── 렌더 ────────────────────────────────────────────────────
   return (
-    <div className="relative flex flex-col min-h-full px-3 pt-2 gap-2 pb-24">
+    <div className="relative flex flex-col min-h-full px-1.5 pt-2 gap-2 pb-24">
       {/* ── 전역 기간 선택기 (상단) ── */}
       <div className="rounded-xl p-1.5 shadow-lg backdrop-blur-md border border-white/10 flex flex-col gap-1.5"
         style={{ background: "linear-gradient(145deg, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0.05) 100%)" }}>
