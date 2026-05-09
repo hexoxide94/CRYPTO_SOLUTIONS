@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     const token = await getKisToken();
     if (!token) throw new Error("KIS token failed");
 
-    const { marketCode } = getKisMarketInfo();
+    const kisMarketCode = "J";
 
     // 1. 기간별 Coinone 및 KIS 파라미터 설정
     let coinoneInterval = "1h";
@@ -56,8 +56,8 @@ export async function GET(request: Request) {
     const [coinoneRes, kisHistory] = await Promise.all([
       fetch(coinoneUrl, { cache: "no-store" }),
       useMinuteKis 
-        ? fetchKisMinuteHistory(token, marketCode) as Promise<KisMinuteData[]>
-        : fetchKisHistory(token, marketCode, "D") as Promise<KisDailyData[]>
+        ? fetchKisMinuteHistory(token, kisMarketCode) as Promise<KisMinuteData[]>
+        : fetchKisHistory(token, kisMarketCode, "D") as Promise<KisDailyData[]>
     ]);
 
     if (!coinoneRes.ok) throw new Error("Coinone API failed");
@@ -69,7 +69,7 @@ export async function GET(request: Request) {
 
     // 3. 데이터 매칭 및 김프 계산
     const chartData = marketCandles.map((c) => {
-      const ts = Number(c.timestamp) * 1000; // 초 단위를 밀리초로 변환
+      const ts = Number(c.timestamp);
       const domesticPrice = parseFloat(c.close);
       
       let overseasPrice = 0;
@@ -90,11 +90,12 @@ export async function GET(request: Request) {
         overseasPrice = match ? parseFloat(match.futs_prpr) : 0;
       }
 
-      // 만약 해외 가격을 못 찾았다면, 전체 데이터 중 가장 가까운 시점의 가격을 폴백으로 사용
+      // 만약 정확한 시점을 못 찾았다면, 전체 KIS 데이터 중 가장 최근 값을 폴백으로 사용
       if (!overseasPrice && kisData.length > 0) {
         overseasPrice = parseFloat((kisData[0] as KisDailyData).futs_prpr);
       }
 
+      // 김프 계산 (해외가가 0이면 결과도 0으로 처리하여 USDC 가격 노출 방지)
       const kimp = overseasPrice > 0 ? ((domesticPrice / overseasPrice) - 1) * 100 : 0;
 
       return {

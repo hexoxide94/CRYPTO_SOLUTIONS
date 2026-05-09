@@ -375,7 +375,9 @@ export default function KimpPage() {
   // 시장 데이터 가공
   const marketChartPoints = marketData.map(d => ({
     x: d.timestamp,
-    y: chartMode === "kimp" ? d.kimp : d.domestic - d.overseas,
+    y: d.overseas > 0 
+      ? (chartMode === "kimp" ? d.kimp : d.domestic - d.overseas)
+      : 0,
     isMarket: true,
     detail: d
   }));
