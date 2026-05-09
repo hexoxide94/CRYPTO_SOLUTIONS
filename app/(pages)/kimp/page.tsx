@@ -232,8 +232,8 @@ export default function KimpPage() {
   const [form, setForm]                   = useState<FormState>(defaultForm());
   const [saving, setSaving]               = useState(false);
   const [chartMode, setChartMode]         = useState<"kimp" | "diff">("kimp");
-  const [chartRange, setChartRange]       = useState<ChartRange>("1w");
-  const [equalInterval, setEqualInterval] = useState(false);
+  const [chartRange, setChartRange]       = useState<ChartRange>("3d");
+  const [equalInterval, setEqualInterval] = useState(true);
   const [customRange, setCustomRange] = useState({ start: "", end: "" });
   const [showOptions, setShowOptions]     = useState(false);
   const [showContracts, setShowContracts] = useState(true);
@@ -244,13 +244,13 @@ export default function KimpPage() {
     kimp: { min: string; max: string };
     diff: { min: string; max: string };
   }>({ kimp: { min: "", max: "" }, diff: { min: "", max: "" } });
-  const [summaryRange, setSummaryRange]   = useState<SummaryRange>("1w");
+  const [summaryRange, setSummaryRange]   = useState<SummaryRange>("3d");
   const [listExpanded, setListExpanded]   = useState(true);
   const chartRef                          = useRef<HTMLDivElement>(null);
 
   // ── 시장 김프 데이터 ──────────────────────────────────────────
   const [marketData, setMarketData] = useState<MarketPoint[]>([]);
-  const [viewMode, setViewMode] = useState({ trades: true, market: true });
+  const [viewMode, setViewMode] = useState({ trades: true, market: false });
   const [marketLoading, setMarketLoading] = useState(false);
 
   const fetchMarketChartData = useCallback(async () => {
