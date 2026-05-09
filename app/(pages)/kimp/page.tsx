@@ -46,7 +46,6 @@ interface FormState {
 }
 
 type ChartRange   = "1d" | "3d" | "1w" | "2w" | "1m" | "all" | "custom";
-type SummaryRange = "1d" | "3d" | "1w" | "2w" | "1m";
 
 // ─── 유틸 ──────────────────────────────────────────────────────
 const toNum = (s: string) => Number(s.replace(/,/g, "")) || 0;
@@ -95,7 +94,7 @@ function formatKrwShort(num: number): string {
   return (num < 0 ? "-" : "") + result.trim() + "원";
 }
 
-function getRangeStart(range: ChartRange | SummaryRange): number {
+function getRangeStart(range: ChartRange): number {
   const now = Date.now();
   if (range === "1d") return now - 24 * 60 * 60 * 1000;
   if (range === "3d") return now - 3 * 24 * 60 * 60 * 1000;
@@ -244,7 +243,6 @@ export default function KimpPage() {
     kimp: { min: string; max: string };
     diff: { min: string; max: string };
   }>({ kimp: { min: "", max: "" }, diff: { min: "", max: "" } });
-  const [summaryRange, setSummaryRange]   = useState<SummaryRange>("3d");
   const [listExpanded, setListExpanded]   = useState(true);
   const chartRef                          = useRef<HTMLDivElement>(null);
 
@@ -299,45 +297,7 @@ export default function KimpPage() {
 
   useEffect(() => { fetchTrades(); }, [fetchTrades]);
 
-  // ── 요약 ────────────────────────────────────────────────────
-  const openTotal   = trades.filter(t => t.status === "open").reduce((s, t) => s + Number(t.amount), 0);
-  const closedTotal = trades.filter(t => t.status === "closed").reduce((s, t) => s + Number(t.amount), 0);
-  const netPosition = openTotal - closedTotal;
-
-  // ── 기간 요약 ────────────────────────────────────────────────
-  const summaryStart  = getRangeStart(summaryRange);
-  const summaryTrades = summaryStart > 0
-    ? trades.filter(t => new Date(t.traded_at).getTime() >= summaryStart)
-    : trades;
-  const sumOpen   = summaryTrades.filter(t => t.status === "open");
-  const sumClosed = summaryTrades.filter(t => t.status === "closed");
-
-  const summaryDays = summaryRange === "1d" ? 1 : summaryRange === "1w" ? 7 : summaryRange === "2w" ? 14 : 30;
-
-  function getContractsSum(ts: KimpTrade[]) {
-    return ts.reduce((sum, t) => {
-      const raw = t.detail_json?.contracts ?? 0;
-      const ft = t.detail_json?.futures_type ?? "domestic";
-      const dollar = Number(t.buy_price_usdt ?? 0);
-      const displayContracts = ft === "overseas" && dollar > 0
-        ? Math.round(KRW_PER_OVERSEAS_CONTRACT / dollar / USDT_PER_DOMESTIC_CONTRACT)
-        : raw;
-      return sum + displayContracts;
-    }, 0);
-  }
-
-  const openCountPerDay = getContractsSum(sumOpen) / summaryDays;
-  const closedCountPerDay = getContractsSum(sumClosed) / summaryDays;
-
-  function weightedAvgKimp(ts: KimpTrade[]): number | null {
-    const totalAmt = ts.reduce((s, t) => s + Number(t.amount), 0);
-    if (!totalAmt) return null;
-    return ts.reduce((s, t) => s + calcKimp(t.sell_price_krw, Number(t.buy_price_usdt)) * Number(t.amount), 0) / totalAmt;
-  }
-  const openAvgKimp   = weightedAvgKimp(sumOpen);
-  const closedAvgKimp = weightedAvgKimp(sumClosed);
-
-  // ── 차트 데이터 ─────────────────────────────────────────────
+  // ── 차트 데이터 필터링 ─────────────────────────────────────────
   const getY = (t: KimpTrade) =>
     chartMode === "kimp"
       ? calcKimp(t.sell_price_krw, Number(t.buy_price_usdt))
@@ -362,6 +322,55 @@ export default function KimpPage() {
       ? sortedAll.filter(t => new Date(t.traded_at).getTime() >= rangeStart)
       : sortedAll;
   })();
+
+  // ── 요약 ────────────────────────────────────────────────────
+  const openTotal   = trades.filter(t => t.status === "open").reduce((s, t) => s + Number(t.amount), 0);
+  const closedTotal = trades.filter(t => t.status === "closed").reduce((s, t) => s + Number(t.amount), 0);
+  const netPosition = openTotal - closedTotal;
+
+  // ── 기간 요약 ────────────────────────────────────────────────
+  const summaryTrades = filteredAll;
+  const sumOpen   = summaryTrades.filter(t => t.status === "open");
+  const sumClosed = summaryTrades.filter(t => t.status === "closed");
+
+  const summaryDays = (() => {
+    if (chartRange === "custom" && customRange.start && customRange.end) {
+      const s = new Date(customRange.start).getTime();
+      const e = new Date(customRange.end).getTime();
+      const diff = Math.ceil((e - s) / (1000 * 60 * 60 * 24)) + 1;
+      return diff > 0 ? diff : 1;
+    }
+    if (chartRange === "all") {
+      if (trades.length < 2) return 1;
+      const times = trades.map(t => new Date(t.traded_at).getTime());
+      const diff = Math.ceil((Math.max(...times) - Math.min(...times)) / (1000 * 60 * 60 * 24)) + 1;
+      return diff > 0 ? diff : 1;
+    }
+    return chartRange === "1d" ? 1 : chartRange === "3d" ? 3 : chartRange === "1w" ? 7 : chartRange === "2w" ? 14 : 30;
+  })();
+
+  function getContractsSum(ts: KimpTrade[]) {
+    return ts.reduce((sum, t) => {
+      const raw = t.detail_json?.contracts ?? 0;
+      const ft = t.detail_json?.futures_type ?? "domestic";
+      const dollar = Number(t.buy_price_usdt ?? 0);
+      const displayContracts = ft === "overseas" && dollar > 0
+        ? Math.round(KRW_PER_OVERSEAS_CONTRACT / dollar / USDT_PER_DOMESTIC_CONTRACT)
+        : raw;
+      return sum + displayContracts;
+    }, 0);
+  }
+
+  const openCountPerDay = getContractsSum(sumOpen) / summaryDays;
+  const closedCountPerDay = getContractsSum(sumClosed) / summaryDays;
+
+  function weightedAvgKimp(ts: KimpTrade[]): number | null {
+    const totalAmt = ts.reduce((s, t) => s + Number(t.amount), 0);
+    if (!totalAmt) return null;
+    return ts.reduce((s, t) => s + calcKimp(t.sell_price_krw, Number(t.buy_price_usdt)) * Number(t.amount), 0) / totalAmt;
+  }
+  const openAvgKimp   = weightedAvgKimp(sumOpen);
+  const closedAvgKimp = weightedAvgKimp(sumClosed);
 
   const allChartPoints = filteredAll.map((t, i) => ({
     x: equalInterval ? i : new Date(t.traded_at).getTime(),
@@ -595,7 +604,6 @@ export default function KimpPage() {
                   key={r}
                   onClick={() => { 
                     setChartRange(r); 
-                    setSummaryRange(r as SummaryRange); 
                     if (viewMode.market) setEqualInterval(false);
                   }}
                   className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all ${
