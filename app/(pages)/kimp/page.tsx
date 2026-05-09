@@ -663,11 +663,12 @@ export default function KimpPage() {
                       type="monotone"
                       data={marketChartPoints}
                       dataKey="y"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={1.5}
+                      stroke="#22D3EE"
+                      strokeWidth={2}
                       dot={false}
                       activeDot={{ r: 4, strokeWidth: 0 }}
-                      opacity={0.8}
+                      opacity={0.9}
+                      name="시장 김프"
                     />
                   )}
 

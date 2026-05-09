@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getKisToken, fetchKisHistory, fetchKisMinuteHistory } from "@/lib/kis";
+import { getKisToken, fetchKisHistory, fetchKisMinuteHistory, getKisMarketInfo } from "@/lib/kis";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +20,8 @@ export async function GET(request: Request) {
   try {
     const token = await getKisToken();
     if (!token) throw new Error("KIS token failed");
+
+    const { fidCondMrktDivCode } = getKisMarketInfo();
 
     // 1. 기간별 Coinone 및 KIS 파라미터 설정
     let coinoneInterval = "1h";
@@ -54,8 +56,8 @@ export async function GET(request: Request) {
     const [coinoneRes, kisHistory] = await Promise.all([
       fetch(coinoneUrl, { cache: "no-store" }),
       useMinuteKis 
-        ? fetchKisMinuteHistory(token, "CF") as Promise<KisMinuteData[]>
-        : fetchKisHistory(token, "CF", "D") as Promise<KisDailyData[]>
+        ? fetchKisMinuteHistory(token, fidCondMrktDivCode) as Promise<KisMinuteData[]>
+        : fetchKisHistory(token, fidCondMrktDivCode, "D") as Promise<KisDailyData[]>
     ]);
 
     if (!coinoneRes.ok) throw new Error("Coinone API failed");
@@ -88,6 +90,7 @@ export async function GET(request: Request) {
         overseasPrice = match ? parseFloat(match.futs_prpr) : 0;
       }
 
+      // 만약 해외 가격을 못 찾았다면, 전체 데이터 중 가장 가까운 시점의 가격을 폴백으로 사용
       if (!overseasPrice && kisData.length > 0) {
         overseasPrice = parseFloat((kisData[0] as KisDailyData).futs_prpr);
       }
