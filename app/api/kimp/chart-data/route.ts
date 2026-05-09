@@ -69,7 +69,7 @@ export async function GET(request: Request) {
 
     // 3. 데이터 매칭 및 김프 계산
     const chartData = marketCandles.map((c) => {
-      const ts = Number(c.timestamp);
+      const ts = Number(c.timestamp) * 1000; // 초 단위를 밀리초로 변환
       const domesticPrice = parseFloat(c.close);
       
       let overseasPrice = 0;
