@@ -27,8 +27,8 @@ interface BacktestResult {
   trades: {
     entry_time: string;
     exit_time: string;
-    buy_price: number;
-    sell_price: number;
+    buy_price_kimp: number;
+    sell_price_kimp: number;
     profit: number;
     status: string;
   }[];
@@ -122,15 +122,21 @@ export default function BacktestPage() {
           </div>
         </div>
 
-        {/* Sliders */}
+        {/* Parameters */}
         <div className="grid grid-cols-1 gap-4">
-          <SliderItem 
-            label="총 투자금액 (원)" 
-            value={totalInvestment} 
-            onChange={setTotalInvestment} 
-            min={1000000} max={1000000000} step={1000000}
-            format={(v) => `${(v/100000000).toFixed(1)}억`}
-          />
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] font-bold text-muted-foreground flex items-center gap-1">
+              <DollarSign size={12} /> 총 투자금액 (원)
+            </label>
+            <input 
+              type="number"
+              value={totalInvestment}
+              onChange={(e) => setTotalInvestment(Number(e.target.value))}
+              className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-sm font-bold tabular-nums outline-none focus:border-blue-500/50 transition-colors"
+              placeholder="투자금액 입력"
+            />
+          </div>
+          
           <div className="grid grid-cols-2 gap-3">
             <SliderItem label="STEP (진입 간격)" value={step} onChange={setStep} min={0.5} max={15} step={0.5} unit="원" />
             <SliderItem label="SPLIT (분할 수)" value={split} onChange={setSplit} min={1} max={20} step={1} unit="분할" />
@@ -221,8 +227,8 @@ export default function BacktestPage() {
                 <thead className="bg-white/5 text-muted-foreground sticky top-0">
                   <tr>
                     <th className="p-2 font-medium">시간</th>
-                    <th className="p-2 font-medium">매수가</th>
-                    <th className="p-2 font-medium">매도가</th>
+                    <th className="p-2 font-medium">진입김프</th>
+                    <th className="p-2 font-medium">청산김프</th>
                     <th className="p-2 font-medium">수익</th>
                   </tr>
                 </thead>
@@ -233,8 +239,8 @@ export default function BacktestPage() {
                         <div className="text-[10px]">{t.entry_time.split(' ')[0]}</div>
                         <div>{t.entry_time.split(' ')[1]}</div>
                       </td>
-                      <td className="p-2 tabular-nums">{t.buy_price.toLocaleString()}</td>
-                      <td className="p-2 tabular-nums">{t.sell_price.toLocaleString()}</td>
+                      <td className="p-2 tabular-nums">{t.buy_price_kimp.toFixed(1)}</td>
+                      <td className="p-2 tabular-nums">{t.sell_price_kimp.toFixed(1)}</td>
                       <td className={`p-2 tabular-nums font-bold ${t.profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                         {t.profit >= 0 ? '+' : ''}{t.profit.toLocaleString()}
                       </td>

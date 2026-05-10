@@ -1,21 +1,25 @@
 import pandas as pd
 import json
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from io import StringIO
 from http.server import BaseHTTPRequestHandler
 import cgi
 
 def is_trading_time(dt):
-    # Weekday check (0=Mon, 4=Fri)
-    if dt.weekday() >= 5:
-        return False
-    
+    # Weekday check (0=Mon, 4=Fri, 5=Sat, 6=Sun)
+    weekday = dt.weekday()
     t = dt.time()
-    # 08:45 ~ 15:45
-    if time(8, 45) <= t <= time(15, 45):
+    
+    # 평일 A구간: 08:45 ~ 15:45
+    if weekday < 5 and time(8, 45) <= t <= time(15, 45):
         return True
-    # 18:00 ~ 06:00 (Next day)
-    if t >= time(18, 0) or t < time(6, 0):
+    
+    # 평일 B구간: 18:00 ~ 23:59:59
+    if weekday < 5 and t >= time(18, 0):
+        return True
+        
+    # 익일 연장선: 00:00 ~ 06:00 (오늘이 화~토요일인 경우, 즉 전날이 월~금요일인 경우)
+    if weekday <= 5 and t < time(6, 0):
         return True
         
     return False
@@ -24,10 +28,7 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         content_type, pdict = cgi.parse_header(self.headers.get('content-type'))
         
-        # Parse multipart form data
         if content_type == 'multipart/form-data':
-            # cgi.parse_multipart is tricky with binary in some environments
-            # but since Vercel provides the body, we can handle it
             pdict['boundary'] = bytes(pdict['boundary'], "utf-8")
             fields = cgi.parse_multipart(self.rfile, pdict)
             
@@ -36,7 +37,9 @@ class handler(BaseHTTPRequestHandler):
                 step = float(fields.get('step')[0])
                 split = int(fields.get('split')[0])
                 target = float(fields.get('target')[0])
-                slippage = float(fields.get('slippage')[0])
+                # Note: slippage is handled as a fixed 0.5 in the provided logic, 
+                # but we'll use the slider value if it's not 0.5
+                slippage = float(fields.get('slippage')[0]) 
                 total_investment = float(fields.get('total_investment')[0])
             except Exception as e:
                 self.send_response(400)
@@ -49,22 +52,27 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": "Content-Type must be multipart/form-data"}).encode())
             return
 
-        # Load CSV
         try:
             df = pd.read_csv(StringIO(csv_file_data))
-            # Ensure columns exist
-            required_cols = ['DATE', 'TIME', 'USDT']
+            required_cols = ['DATE', 'TIME', 'USDT', 'USD']
             if not all(col in df.columns for col in required_cols):
                 self.send_response(400)
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": f"CSV must contain {required_cols}"}).encode())
                 return
             
-            # Combine DATE and TIME
             df['timestamp'] = pd.to_datetime(df['DATE'] + ' ' + df['TIME'])
             df = df.sort_values('timestamp')
             df['USDT'] = pd.to_numeric(df['USDT'], errors='coerce')
-            df = df.dropna(subset=['USDT'])
+            df['USD'] = pd.to_numeric(df['USD'], errors='coerce')
+            
+            # Fill missing USD values if any (simple forward fill)
+            df['USD'] = df['USD'].ffill().bfill()
+            df = df.dropna(subset=['USDT', 'USD'])
+            
+            # Pre-filter by trading time
+            df['is_tradable'] = df['timestamp'].apply(is_trading_time)
+            # We don't filter out yet because we need the full curve, but we only trade on is_tradable
         except Exception as e:
             self.send_response(400)
             self.end_headers()
@@ -73,90 +81,112 @@ class handler(BaseHTTPRequestHandler):
 
         # Simulation
         cash = total_investment
-        active_trades = []
+        positions = [] # List of {entry_corrected_kimp, entry_usd, amount_usdt, invested_krw, entry_time}
         trade_history = []
         equity_curve = []
         
-        # Pre-filter trading time to speed up
-        # df = df[df['timestamp'].apply(is_trading_time)] # Not quite right because we need the full timeline for the curve
+        # Grid state
+        grid_base = None
+        invest_per_trade = total_investment / split
         
-        last_processed_date = None
+        last_curve_date = None
         
         for _, row in df.iterrows():
             ts = row['timestamp']
-            price = row['USDT']
+            usdt_price = row['USDT']
+            usd_price = row['USD']
+            current_kimp = usdt_price - usd_price
             
-            # Record equity curve (daily or every N points to keep JSON small)
+            # Grid Base Initialization
+            if grid_base is None:
+                grid_base = current_kimp
+
+            # Record Equity Curve (Daily)
             current_date = ts.date()
-            if last_processed_date != current_date:
-                unrealized_val = sum([t['amount'] * price for t in active_trades])
+            if last_curve_date != current_date:
+                # Unrealized calculation: Cash + Sum(Positions)
+                # Position value = invested_krw + (current_kimp - entry_kimp) * (invested_krw / entry_usd)
+                unrealized_profit = 0
+                for p in positions:
+                    # Correction: (current_kimp - 0.5) if we were to sell now
+                    current_exit_kimp = current_kimp - slippage
+                    unrealized_profit += (current_exit_kimp - p['entry_corrected_kimp']) * (invest_per_trade / p['entry_usd'])
+                
                 equity_curve.append({
                     "time": ts.strftime('%Y-%m-%d'),
-                    "balance": round(cash + unrealized_val, 2)
+                    "balance": round(cash + (len(positions) * invest_per_trade) + unrealized_profit, 2)
                 })
-                last_processed_date = current_date
+                last_curve_date = current_date
 
-            if not is_trading_time(ts):
+            # Trading Logic
+            if not row['is_tradable']:
                 continue
-            
-            # Check Exit
-            exit_price = price - slippage
+                
+            # A. SELL CHECK
+            exit_corrected_kimp = current_kimp - slippage
             to_remove = []
-            for i, trade in enumerate(active_trades):
-                if exit_price >= trade['target_price']:
-                    proceeds = trade['amount'] * exit_price
-                    fee = proceeds * 0.0003
-                    cash += (proceeds - fee)
+            for i, p in enumerate(positions):
+                if exit_corrected_kimp >= p['entry_corrected_kimp'] + target:
+                    # Profit calculation based on Gemini formula
+                    profit = (exit_corrected_kimp - p['entry_corrected_kimp']) * (invest_per_trade / p['entry_usd'])
+                    fee = invest_per_trade * 0.00006 # 0.006%
+                    
+                    cash += (invest_per_trade + profit - fee)
                     
                     trade_history.append({
-                        "entry_time": trade['entry_time'].strftime('%Y-%m-%d %H:%M'),
+                        "entry_time": p['entry_time'].strftime('%Y-%m-%d %H:%M'),
                         "exit_time": ts.strftime('%Y-%m-%d %H:%M'),
-                        "buy_price": trade['buy_price'],
-                        "sell_price": exit_price,
-                        "profit": round(proceeds - trade['invested_krw'] - trade['entry_fee'] - fee, 2),
+                        "buy_price_kimp": round(p['entry_corrected_kimp'], 2),
+                        "sell_price_kimp": round(exit_corrected_kimp, 2),
+                        "profit": round(profit - fee, 2),
                         "status": "closed"
                     })
                     to_remove.append(i)
             
             for i in sorted(to_remove, reverse=True):
-                active_trades.pop(i)
-            
-            # Check Entry
-            if len(active_trades) < split:
-                # Determine last entry price
-                last_entry_price = active_trades[-1]['buy_price'] if active_trades else float('inf')
+                positions.pop(i)
                 
-                # If first trade or price dropped enough from last entry
-                entry_price = price + slippage
-                if len(active_trades) == 0 or entry_price <= last_entry_price - step:
-                    invest_per_trade = total_investment / split
-                    if cash >= invest_per_trade:
-                        entry_fee = invest_per_trade * 0.0003
-                        invested_krw = invest_per_trade
-                        cash -= (invested_krw + entry_fee)
-                        
-                        amount = invested_krw / entry_price
-                        target_price = entry_price + target
-                        
-                        active_trades.append({
-                            "entry_time": ts,
-                            "buy_price": entry_price,
-                            "amount": amount,
-                            "target_price": target_price,
-                            "invested_krw": invested_krw,
-                            "entry_fee": entry_fee
-                        })
+            # B. BUY CHECK
+            if len(positions) < split:
+                entry_corrected_kimp = current_kimp + slippage
+                
+                can_buy = False
+                if len(positions) == 0:
+                    if entry_corrected_kimp <= grid_base:
+                        can_buy = True
+                else:
+                    min_entry = min([p['entry_corrected_kimp'] for p in positions])
+                    if entry_corrected_kimp <= min_entry - step:
+                        can_buy = True
+                
+                if can_buy and cash >= invest_per_trade:
+                    cash -= invest_per_trade
+                    positions.append({
+                        "entry_corrected_kimp": entry_corrected_kimp,
+                        "entry_usd": usd_price,
+                        "invested_krw": invest_per_trade,
+                        "entry_time": ts
+                    })
+            
+            # C. RANGE SHIFT
+            if len(positions) == 0:
+                if current_kimp > grid_base + (step * 2):
+                    grid_base = current_kimp
 
-        # Final Summary
-        final_price = df.iloc[-1]['USDT']
-        unrealized_val = sum([t['amount'] * final_price for t in active_trades])
-        final_balance = cash + unrealized_val
+        # Final Evaluation
+        final_row = df.iloc[-1]
+        final_kimp = final_row['USDT'] - final_row['USD']
+        unrealized_profit = 0
+        for p in positions:
+            current_exit_kimp = final_kimp - slippage
+            unrealized_profit += (current_exit_kimp - p['entry_corrected_kimp']) * (invest_per_trade / p['entry_usd'])
+            
+        final_balance = cash + (len(positions) * invest_per_trade) + unrealized_profit
         total_profit = final_balance - total_investment
         roi = (total_profit / total_investment) * 100
         
-        # Add final equity point
         equity_curve.append({
-            "time": df.iloc[-1]['timestamp'].strftime('%Y-%m-%d %H:%M'),
+            "time": final_row['timestamp'].strftime('%Y-%m-%d %H:%M'),
             "balance": round(final_balance, 2)
         })
 
@@ -164,13 +194,13 @@ class handler(BaseHTTPRequestHandler):
             "summary": {
                 "total_profit": round(total_profit, 2),
                 "roi": round(roi, 2),
-                "trade_count": len(trade_history) + len(active_trades),
+                "trade_count": len(trade_history) + len(positions),
                 "completed_trades": len(trade_history),
-                "active_trades_count": len(active_trades),
+                "active_trades_count": len(positions),
                 "final_balance": round(final_balance, 2)
             },
             "equity_curve": equity_curve,
-            "trades": trade_history[::-1][:200] # Return last 200 trades for performance
+            "trades": trade_history[::-1][:200]
         }
 
         self.send_response(200)
