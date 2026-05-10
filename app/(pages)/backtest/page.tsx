@@ -8,7 +8,7 @@ import {
 } from "recharts";
 import { 
   Upload, Play, AlertCircle, 
-  TrendingUp, Activity, Hash, DollarSign 
+  TrendingUp, Activity, Hash, DollarSign, Download
 } from "lucide-react";
 
 // --- Types ---
@@ -44,6 +44,7 @@ export default function BacktestPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [chartMode, setChartMode] = useState<"balance" | "roi">("balance");
 
   // --- Parameters ---
   const [totalInvestment, setTotalInvestment] = useState(150000000);
@@ -101,12 +102,44 @@ export default function BacktestPage() {
     }
   };
 
+  const downloadCsv = () => {
+    if (!result || !result.trades.length) return;
+    
+    const headers = ["진입시간", "청산시간", "진입김프", "청산김프", "수익(원)"];
+    const rows = result.trades.map(t => [
+      t.entry_time,
+      t.exit_time,
+      t.buy_price_kimp,
+      t.sell_price_kimp,
+      t.profit
+    ]);
+    
+    const csvContent = "\uFEFF" + [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `backtest_result_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const getChartData = () => {
+    if (!result) return [];
+    if (chartMode === "balance") return result.equity_curve;
+    return result.equity_curve.map(point => ({
+      ...point,
+      roi: ((point.balance - totalInvestment) / totalInvestment * 100)
+    }));
+  };
+
   return (
     <div className="flex flex-col gap-3 p-3 pb-20 max-w-md mx-auto min-h-full">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold flex items-center gap-2">
-          <Activity size={18} className="text-blue-500" />
+          <Activity size={18} className="text-indigo-400" />
           김프 백테스팅
         </h1>
       </div>
@@ -121,7 +154,7 @@ export default function BacktestPage() {
               onChange={handleFileChange}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             />
-            <div className={`py-2 px-3 border border-dashed rounded-lg flex items-center justify-center transition-all ${file ? 'border-blue-500/50 bg-blue-500/10' : 'border-white/10 bg-white/5'}`}>
+            <div className={`py-2 px-3 border border-dashed rounded-lg flex items-center justify-center transition-all ${file ? 'border-indigo-500/50 bg-indigo-500/10' : 'border-white/10 bg-white/5'}`}>
               <Upload size={12} className="mr-2 text-muted-foreground" />
               <span className="text-[11px] truncate text-muted-foreground font-medium">
                 {file ? file.name : "CSV 데이터 파일 업로드"}
@@ -140,25 +173,25 @@ export default function BacktestPage() {
               type="text"
               value={formatWithCommas(totalInvestment)}
               onChange={handleInvestmentChange}
-              className="w-full py-2 px-3 rounded-lg bg-white/5 border border-white/10 text-sm font-bold tabular-nums outline-none focus:border-blue-500/50 transition-colors"
+              className="w-full py-2 px-3 rounded-lg bg-white/5 border border-white/10 text-sm font-bold tabular-nums outline-none focus:border-indigo-500/50 transition-colors"
               placeholder="투자금액 입력"
             />
           </div>
           
           <div className="grid grid-cols-2 gap-3">
-            <SliderItem label="STEP (진입 간격)" value={step} onChange={setStep} min={0.1} max={15} step={0.1} unit="원" />
-            <SliderItem label="SPLIT (분할 수)" value={split} onChange={setSplit} min={1} max={20} step={1} unit="분할" />
+            <SliderItem label="STEP (진입 간격)" value={step} onChange={setStep} min={0.1} max={15} step={0.1} unit="원" accentColor="accent-indigo-500" />
+            <SliderItem label="SPLIT (분할 수)" value={split} onChange={setSplit} min={1} max={20} step={1} unit="분할" accentColor="accent-indigo-500" />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <SliderItem label="TARGET (익절)" value={target} onChange={setTarget} min={0.1} max={20} step={0.1} unit="원" />
-            <SliderItem label="SLIPPAGE (보정)" value={slippage} onChange={setSlippage} min={0.0} max={0.5} step={0.01} unit="원" />
+            <SliderItem label="TARGET (익절)" value={target} onChange={setTarget} min={0.1} max={20} step={0.1} unit="원" accentColor="accent-indigo-500" />
+            <SliderItem label="SLIPPAGE (보정)" value={slippage} onChange={setSlippage} min={0.0} max={0.5} step={0.01} unit="원" accentColor="accent-indigo-500" />
           </div>
         </div>
 
         <button 
           onClick={runBacktest}
           disabled={loading}
-          className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800/50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95 mt-1"
+          className="w-full py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800/50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 active:scale-95 mt-1"
         >
           {loading ? (
             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -182,20 +215,36 @@ export default function BacktestPage() {
       {result && (
         <>
           <div className="grid grid-cols-3 gap-2">
-            <StatCard label="총 수익" value={formatKrw(result.summary.total_profit)} color="text-emerald-500" icon={<TrendingUp size={12}/>} />
-            <StatCard label="수익률" value={`${result.summary.roi}%`} color="text-emerald-500" icon={<DollarSign size={12}/>} />
-            <StatCard label="거래수" value={`${result.summary.trade_count}회`} color="text-blue-500" icon={<Hash size={12}/>} />
+            <StatCard label="총 수익" value={formatKrw(result.summary.total_profit)} color="text-emerald-400" icon={<TrendingUp size={12}/>} />
+            <StatCard label="수익률" value={`${result.summary.roi}%`} color="text-emerald-400" icon={<DollarSign size={12}/>} />
+            <StatCard label="거래수" value={`${result.summary.trade_count}회`} color="text-orange-400" icon={<Hash size={12}/>} />
           </div>
 
           {/* Chart */}
-          <div className="rounded-xl p-3.5 shadow-lg backdrop-blur-md border border-white/10 bg-card/40 h-[260px]">
-            <h3 className="text-[10px] font-bold text-muted-foreground mb-3 uppercase tracking-wider">자산 성장 곡선</h3>
+          <div className="rounded-xl p-3 shadow-lg backdrop-blur-md border border-white/10 bg-card/40 h-[260px] relative">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">자산 곡선</h3>
+              <div className="flex bg-white/5 rounded-md p-0.5 border border-white/5">
+                <button 
+                  onClick={() => setChartMode("balance")}
+                  className={`px-2 py-0.5 text-[9px] font-bold rounded-sm transition-all ${chartMode === "balance" ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white"}`}
+                >
+                  원
+                </button>
+                <button 
+                  onClick={() => setChartMode("roi")}
+                  className={`px-2 py-0.5 text-[9px] font-bold rounded-sm transition-all ${chartMode === "roi" ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white"}`}
+                >
+                  %
+                </button>
+              </div>
+            </div>
             <ResponsiveContainer width="100%" height="85%">
-              <AreaChart data={result.equity_curve}>
+              <AreaChart data={getChartData()} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    <stop offset="5%" stopColor={chartMode === "balance" ? "#6366f1" : "#10b981"} stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor={chartMode === "balance" ? "#6366f1" : "#10b981"} stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" vertical={false} />
@@ -206,17 +255,24 @@ export default function BacktestPage() {
                   tick={{fill: '#888888'}}
                   axisLine={false}
                   tickLine={false}
-                  width={50}
-                  tickFormatter={(v) => `${(v/1000000).toFixed(0)}M`}
+                  width={45}
+                  tickFormatter={(v) => chartMode === "balance" ? `${(v/1000000).toFixed(0)}M` : `${v.toFixed(1)}%`}
                 />
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '10px', fontSize: '10px', padding: '8px' }}
                   itemStyle={{ color: '#fff', padding: '2px 0' }}
                   labelStyle={{ color: '#888', marginBottom: '4px' }}
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  formatter={(v: any) => formatKrw(Number(v))}
+                  formatter={(v: any) => chartMode === "balance" ? formatKrw(Number(v)) : `${Number(v).toFixed(2)}%`}
                 />
-                <Area type="monotone" dataKey="balance" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorBalance)" />
+                <Area 
+                  type="monotone" 
+                  dataKey={chartMode === "balance" ? "balance" : "roi"} 
+                  stroke={chartMode === "balance" ? "#6366f1" : "#10b981"} 
+                  strokeWidth={2} 
+                  fillOpacity={1} 
+                  fill="url(#colorBalance)" 
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -224,7 +280,16 @@ export default function BacktestPage() {
           {/* Trades Table */}
           <div className="rounded-xl overflow-hidden shadow-lg backdrop-blur-md border border-white/10 bg-card/40">
             <div className="p-2.5 border-b border-white/10 flex justify-between items-center">
-              <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">최근 매매 내역</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">최근 매매 내역</h3>
+                <button 
+                  onClick={downloadCsv}
+                  className="p-1 rounded-md bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-white transition-all"
+                  title="CSV 다운로드"
+                >
+                  <Download size={12} />
+                </button>
+              </div>
               <span className="text-[9px] text-muted-foreground font-medium">완료 {result.summary.completed_trades} / 진행 {result.summary.active_trades_count}</span>
             </div>
             <div className="max-h-[250px] overflow-y-auto no-scrollbar">
@@ -234,7 +299,7 @@ export default function BacktestPage() {
                     <th className="p-2 font-semibold">시간</th>
                     <th className="p-2 font-semibold">진입김프</th>
                     <th className="p-2 font-semibold">청산김프</th>
-                    <th className="p-2 font-semibold">수익</th>
+                    <th className="p-2 font-semibold text-right">수익</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
@@ -246,7 +311,7 @@ export default function BacktestPage() {
                       </td>
                       <td className="p-2 tabular-nums">{t.buy_price_kimp.toFixed(1)}</td>
                       <td className="p-2 tabular-nums">{t.sell_price_kimp.toFixed(1)}</td>
-                      <td className={`p-2 tabular-nums font-bold ${t.profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                      <td className={`p-2 tabular-nums font-bold text-right ${t.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {t.profit >= 0 ? '+' : ''}{t.profit.toLocaleString()}
                       </td>
                     </tr>
@@ -266,7 +331,7 @@ export default function BacktestPage() {
   );
 }
 
-function SliderItem({ label, value, onChange, min, max, step, unit = "", format }: {
+function SliderItem({ label, value, onChange, min, max, step, unit = "", format, accentColor = "accent-blue-500" }: {
   label: string;
   value: number;
   onChange: (v: number) => void;
@@ -275,6 +340,7 @@ function SliderItem({ label, value, onChange, min, max, step, unit = "", format 
   step: number;
   unit?: string;
   format?: (v: number) => string;
+  accentColor?: string;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -289,7 +355,7 @@ function SliderItem({ label, value, onChange, min, max, step, unit = "", format 
         min={min} max={max} step={step} 
         value={value} 
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-500"
+        className={`w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer ${accentColor}`}
       />
     </div>
   );
@@ -302,12 +368,12 @@ function StatCard({ label, value, color, icon }: {
   icon: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl p-2.5 shadow-md border border-white/5 bg-white/5 flex flex-col gap-1">
-      <div className="flex items-center gap-1.5 text-muted-foreground opacity-80">
+    <div className="rounded-xl p-3 shadow-md border border-white/5 bg-white/5 flex flex-col items-center gap-1.5 text-center">
+      <div className="flex items-center gap-1.5 text-muted-foreground opacity-70">
         {icon}
         <span className="text-[8px] font-bold uppercase tracking-wider">{label}</span>
       </div>
-      <div className={`text-[11px] font-bold tabular-nums truncate ${color}`}>
+      <div className={`text-[13px] font-extrabold tabular-nums truncate ${color}`}>
         {value}
       </div>
     </div>
