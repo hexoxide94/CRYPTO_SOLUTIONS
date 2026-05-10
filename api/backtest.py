@@ -33,7 +33,17 @@ class handler(BaseHTTPRequestHandler):
             fields = cgi.parse_multipart(self.rfile, pdict)
             
             try:
-                csv_file_data = fields.get('file')[0].decode('utf-8')
+                # Check if file was uploaded
+                uploaded_file = fields.get('file')
+                if uploaded_file and len(uploaded_file) > 0:
+                    csv_file_data = uploaded_file[0].decode('utf-8')
+                else:
+                    # Use default file if no file uploaded
+                    import os
+                    default_path = os.path.join(os.path.dirname(__file__), 'kimp_history_01.csv')
+                    with open(default_path, 'r', encoding='utf-8') as f:
+                        csv_file_data = f.read()
+
                 step = float(fields.get('step')[0])
                 split = int(fields.get('split')[0])
                 target = float(fields.get('target')[0])

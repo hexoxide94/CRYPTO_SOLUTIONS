@@ -70,16 +70,13 @@ export default function BacktestPage() {
   };
 
   const runBacktest = async () => {
-    if (!file) {
-      setError("CSV 파일을 먼저 업로드해주세요.");
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
     const formData = new FormData();
-    formData.append("file", file);
+    if (file) {
+      formData.append("file", file);
+    }
     formData.append("total_investment", totalInvestment.toString());
     formData.append("step", step.toString());
     formData.append("split", split.toString());
@@ -152,7 +149,7 @@ export default function BacktestPage() {
               />
               <div className={`h-full px-3 border border-dashed rounded-lg flex items-center justify-center transition-all ${file ? 'border-indigo-500/50 bg-indigo-500/10' : 'border-white/10 bg-white/5'}`}>
                 <span className="text-[10px] truncate text-muted-foreground font-medium">
-                  {file ? file.name : "업로드"}
+                  {file ? file.name : "history_01 (기본)"}
                 </span>
               </div>
             </div>
