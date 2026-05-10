@@ -58,6 +58,16 @@ export default function BacktestPage() {
     }
   };
 
+  const formatWithCommas = (val: number) => {
+    return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  };
+
+  const handleInvestmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/,/g, "");
+    const num = Number(raw);
+    if (!isNaN(num)) setTotalInvestment(num);
+  };
+
   const runBacktest = async () => {
     if (!file) {
       setError("CSV 파일을 먼저 업로드해주세요.");
@@ -92,21 +102,18 @@ export default function BacktestPage() {
   };
 
   return (
-    <div className="flex flex-col gap-4 p-4 pb-20 max-w-md mx-auto min-h-full">
+    <div className="flex flex-col gap-3 p-3 pb-20 max-w-md mx-auto min-h-full">
       {/* Header */}
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <Activity className="text-blue-500" />
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-bold flex items-center gap-2">
+          <Activity size={18} className="text-blue-500" />
           김프 백테스팅
         </h1>
       </div>
 
       {/* Settings Card */}
-      <div className="rounded-2xl p-5 shadow-lg backdrop-blur-md border border-white/10 bg-card/40 flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-            <Upload size={14} /> CSV 데이터 파일
-          </label>
+      <div className="rounded-xl p-4 shadow-lg backdrop-blur-md border border-white/10 bg-card/40 flex flex-col gap-3">
+        <div className="flex flex-col gap-1.5">
           <div className="relative group">
             <input 
               type="file" 
@@ -114,35 +121,36 @@ export default function BacktestPage() {
               onChange={handleFileChange}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             />
-            <div className={`p-3 border-2 border-dashed rounded-xl flex items-center justify-center transition-all ${file ? 'border-blue-500/50 bg-blue-500/10' : 'border-white/10 bg-white/5 group-hover:border-white/20'}`}>
-              <span className="text-sm truncate text-muted-foreground">
-                {file ? file.name : "클릭하여 CSV 파일 업로드"}
+            <div className={`py-2 px-3 border border-dashed rounded-lg flex items-center justify-center transition-all ${file ? 'border-blue-500/50 bg-blue-500/10' : 'border-white/10 bg-white/5'}`}>
+              <Upload size={12} className="mr-2 text-muted-foreground" />
+              <span className="text-[11px] truncate text-muted-foreground font-medium">
+                {file ? file.name : "CSV 데이터 파일 업로드"}
               </span>
             </div>
           </div>
         </div>
 
         {/* Parameters */}
-        <div className="grid grid-cols-1 gap-4">
-          <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-bold text-muted-foreground flex items-center gap-1">
-              <DollarSign size={12} /> 총 투자금액 (원)
+              <DollarSign size={10} /> 총 투자금액 (원)
             </label>
             <input 
-              type="number"
-              value={totalInvestment}
-              onChange={(e) => setTotalInvestment(Number(e.target.value))}
-              className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-sm font-bold tabular-nums outline-none focus:border-blue-500/50 transition-colors"
+              type="text"
+              value={formatWithCommas(totalInvestment)}
+              onChange={handleInvestmentChange}
+              className="w-full py-2 px-3 rounded-lg bg-white/5 border border-white/10 text-sm font-bold tabular-nums outline-none focus:border-blue-500/50 transition-colors"
               placeholder="투자금액 입력"
             />
           </div>
           
           <div className="grid grid-cols-2 gap-3">
-            <SliderItem label="STEP (진입 간격)" value={step} onChange={setStep} min={0.5} max={15} step={0.5} unit="원" />
+            <SliderItem label="STEP (진입 간격)" value={step} onChange={setStep} min={0.1} max={15} step={0.1} unit="원" />
             <SliderItem label="SPLIT (분할 수)" value={split} onChange={setSplit} min={1} max={20} step={1} unit="분할" />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <SliderItem label="TARGET (익절)" value={target} onChange={setTarget} min={0.5} max={20} step={0.5} unit="원" />
+            <SliderItem label="TARGET (익절)" value={target} onChange={setTarget} min={0.1} max={20} step={0.1} unit="원" />
             <SliderItem label="SLIPPAGE (보정)" value={slippage} onChange={setSlippage} min={0.0} max={0.5} step={0.01} unit="원" />
           </div>
         </div>
@@ -150,13 +158,13 @@ export default function BacktestPage() {
         <button 
           onClick={runBacktest}
           disabled={loading}
-          className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800/50 text-white font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95"
+          className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800/50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95 mt-1"
         >
           {loading ? (
-            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
             <>
-              <Play size={18} fill="currentColor" />
+              <Play size={16} fill="currentColor" />
               백테스팅 시작
             </>
           )}
@@ -164,8 +172,8 @@ export default function BacktestPage() {
       </div>
 
       {error && (
-        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs flex items-center gap-2">
-          <AlertCircle size={14} />
+        <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] flex items-center gap-2">
+          <AlertCircle size={12} />
           {error}
         </div>
       )}
@@ -174,69 +182,66 @@ export default function BacktestPage() {
       {result && (
         <>
           <div className="grid grid-cols-3 gap-2">
-            <StatCard label="총 수익" value={formatKrw(result.summary.total_profit)} color="text-emerald-500" icon={<TrendingUp size={14}/>} />
-            <StatCard label="수익률" value={`${result.summary.roi}%`} color="text-emerald-500" icon={<DollarSign size={14}/>} />
-            <StatCard label="거래수" value={`${result.summary.trade_count}회`} color="text-blue-500" icon={<Hash size={14}/>} />
+            <StatCard label="총 수익" value={formatKrw(result.summary.total_profit)} color="text-emerald-500" icon={<TrendingUp size={12}/>} />
+            <StatCard label="수익률" value={`${result.summary.roi}%`} color="text-emerald-500" icon={<DollarSign size={12}/>} />
+            <StatCard label="거래수" value={`${result.summary.trade_count}회`} color="text-blue-500" icon={<Hash size={12}/>} />
           </div>
 
           {/* Chart */}
-          <div className="rounded-2xl p-4 shadow-lg backdrop-blur-md border border-white/10 bg-card/40 h-[300px]">
-            <h3 className="text-xs font-bold text-muted-foreground mb-4">자산 성장 곡선</h3>
-            <ResponsiveContainer width="100%" height="80%">
+          <div className="rounded-xl p-3.5 shadow-lg backdrop-blur-md border border-white/10 bg-card/40 h-[260px]">
+            <h3 className="text-[10px] font-bold text-muted-foreground mb-3 uppercase tracking-wider">자산 성장 곡선</h3>
+            <ResponsiveContainer width="100%" height="85%">
               <AreaChart data={result.equity_curve}>
                 <defs>
                   <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
                     <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-                <XAxis 
-                  dataKey="time" 
-                  hide={true}
-                />
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" vertical={false} />
+                <XAxis dataKey="time" hide={true} />
                 <YAxis 
                   domain={['auto', 'auto']}
-                  fontSize={10}
+                  fontSize={9}
                   tick={{fill: '#888888'}}
                   axisLine={false}
                   tickLine={false}
-                  width={60}
+                  width={50}
                   tickFormatter={(v) => `${(v/1000000).toFixed(0)}M`}
                 />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', fontSize: '10px' }}
-                  itemStyle={{ color: '#fff' }}
-                  labelStyle={{ color: '#888' }}
+                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '10px', fontSize: '10px', padding: '8px' }}
+                  itemStyle={{ color: '#fff', padding: '2px 0' }}
+                  labelStyle={{ color: '#888', marginBottom: '4px' }}
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   formatter={(v: any) => formatKrw(Number(v))}
                 />
-                <Area type="monotone" dataKey="balance" stroke="#3b82f6" fillOpacity={1} fill="url(#colorBalance)" />
+                <Area type="monotone" dataKey="balance" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorBalance)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
 
           {/* Trades Table */}
-          <div className="rounded-2xl overflow-hidden shadow-lg backdrop-blur-md border border-white/10 bg-card/40">
-            <div className="p-3 border-b border-white/10 flex justify-between items-center">
-              <h3 className="text-xs font-bold text-muted-foreground">최근 매매 내역 (최대 200건)</h3>
-              <span className="text-[10px] text-muted-foreground">완료 {result.summary.completed_trades} / 진행 {result.summary.active_trades_count}</span>
+          <div className="rounded-xl overflow-hidden shadow-lg backdrop-blur-md border border-white/10 bg-card/40">
+            <div className="p-2.5 border-b border-white/10 flex justify-between items-center">
+              <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">최근 매매 내역</h3>
+              <span className="text-[9px] text-muted-foreground font-medium">완료 {result.summary.completed_trades} / 진행 {result.summary.active_trades_count}</span>
             </div>
-            <div className="max-h-[300px] overflow-y-auto no-scrollbar">
-              <table className="w-full text-[11px] text-left">
-                <thead className="bg-white/5 text-muted-foreground sticky top-0">
+            <div className="max-h-[250px] overflow-y-auto no-scrollbar">
+              <table className="w-full text-[10px] text-left">
+                <thead className="bg-white/5 text-muted-foreground sticky top-0 z-10">
                   <tr>
-                    <th className="p-2 font-medium">시간</th>
-                    <th className="p-2 font-medium">진입김프</th>
-                    <th className="p-2 font-medium">청산김프</th>
-                    <th className="p-2 font-medium">수익</th>
+                    <th className="p-2 font-semibold">시간</th>
+                    <th className="p-2 font-semibold">진입김프</th>
+                    <th className="p-2 font-semibold">청산김프</th>
+                    <th className="p-2 font-semibold">수익</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {result.trades.map((t, i) => (
                     <tr key={i} className="hover:bg-white/5 transition-colors">
                       <td className="p-2 text-muted-foreground leading-tight">
-                        <div className="text-[10px]">{t.entry_time.split(' ')[0]}</div>
+                        <div className="text-[9px]">{t.entry_time.split(' ')[0]}</div>
                         <div>{t.entry_time.split(' ')[1]}</div>
                       </td>
                       <td className="p-2 tabular-nums">{t.buy_price_kimp.toFixed(1)}</td>
@@ -274,8 +279,8 @@ function SliderItem({ label, value, onChange, min, max, step, unit = "", format 
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex justify-between items-center px-0.5">
-        <span className="text-[10px] font-bold text-muted-foreground">{label}</span>
-        <span className="text-[11px] font-bold text-foreground">
+        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-tight">{label}</span>
+        <span className="text-[10px] font-bold text-foreground">
           {format ? format(value) : `${value.toLocaleString()}${unit}`}
         </span>
       </div>
@@ -284,7 +289,7 @@ function SliderItem({ label, value, onChange, min, max, step, unit = "", format 
         min={min} max={max} step={step} 
         value={value} 
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-500"
+        className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-500"
       />
     </div>
   );
@@ -297,12 +302,12 @@ function StatCard({ label, value, color, icon }: {
   icon: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl p-3 shadow-md border border-white/5 bg-white/5 flex flex-col gap-1">
-      <div className="flex items-center gap-1.5 text-muted-foreground">
+    <div className="rounded-xl p-2.5 shadow-md border border-white/5 bg-white/5 flex flex-col gap-1">
+      <div className="flex items-center gap-1.5 text-muted-foreground opacity-80">
         {icon}
-        <span className="text-[9px] font-medium uppercase tracking-wider">{label}</span>
+        <span className="text-[8px] font-bold uppercase tracking-wider">{label}</span>
       </div>
-      <div className={`text-xs font-bold tabular-nums truncate ${color}`}>
+      <div className={`text-[11px] font-bold tabular-nums truncate ${color}`}>
         {value}
       </div>
     </div>
