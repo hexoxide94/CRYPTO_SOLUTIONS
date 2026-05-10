@@ -202,7 +202,7 @@ export default function BacktestPage() {
                   contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', fontSize: '10px' }}
                   itemStyle={{ color: '#fff' }}
                   labelStyle={{ color: '#888' }}
-                  formatter={(v: number) => formatKrw(v)}
+                  formatter={(v: any) => formatKrw(Number(v))}
                 />
                 <Area type="monotone" dataKey="balance" stroke="#3b82f6" fillOpacity={1} fill="url(#colorBalance)" />
               </AreaChart>
