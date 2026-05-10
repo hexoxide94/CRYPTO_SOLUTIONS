@@ -8,7 +8,7 @@ import {
 } from "recharts";
 import { 
   Upload, Play, AlertCircle, 
-  TrendingUp, Activity, Hash, DollarSign, Download
+  TrendingUp, Hash, DollarSign, Download
 } from "lucide-react";
 
 // --- Types ---
@@ -136,35 +136,28 @@ export default function BacktestPage() {
 
   return (
     <div className="flex flex-col gap-3 p-3 pb-20 max-w-md mx-auto min-h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold flex items-center gap-2">
-          <Activity size={18} className="text-indigo-400" />
-          김프 백테스팅
-        </h1>
-      </div>
-
       {/* Settings Card */}
       <div className="rounded-xl p-4 shadow-lg backdrop-blur-md border border-white/10 bg-card/40 flex flex-col gap-3">
-        <div className="flex flex-col gap-1.5">
-          <div className="relative group">
-            <input 
-              type="file" 
-              accept=".csv" 
-              onChange={handleFileChange}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-            />
-            <div className={`py-2 px-3 border border-dashed rounded-lg flex items-center justify-center transition-all ${file ? 'border-indigo-500/50 bg-indigo-500/10' : 'border-white/10 bg-white/5'}`}>
-              <Upload size={12} className="mr-2 text-muted-foreground" />
-              <span className="text-[11px] truncate text-muted-foreground font-medium">
-                {file ? file.name : "CSV 데이터 파일 업로드"}
-              </span>
+        <div className="grid grid-cols-2 gap-3 items-end">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-bold text-muted-foreground flex items-center gap-1">
+              <Upload size={10} /> 데이터 (CSV)
+            </label>
+            <div className="relative group h-[38px]">
+              <input 
+                type="file" 
+                accept=".csv" 
+                onChange={handleFileChange}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+              />
+              <div className={`h-full px-3 border border-dashed rounded-lg flex items-center justify-center transition-all ${file ? 'border-indigo-500/50 bg-indigo-500/10' : 'border-white/10 bg-white/5'}`}>
+                <span className="text-[10px] truncate text-muted-foreground font-medium">
+                  {file ? file.name : "업로드"}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Parameters */}
-        <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-bold text-muted-foreground flex items-center gap-1">
               <DollarSign size={10} /> 총 투자금액 (원)
@@ -173,11 +166,14 @@ export default function BacktestPage() {
               type="text"
               value={formatWithCommas(totalInvestment)}
               onChange={handleInvestmentChange}
-              className="w-full py-2 px-3 rounded-lg bg-white/5 border border-white/10 text-sm font-bold tabular-nums outline-none focus:border-indigo-500/50 transition-colors"
-              placeholder="투자금액 입력"
+              className="w-full h-[38px] px-3 rounded-lg bg-white/5 border border-white/10 text-xs font-bold tabular-nums outline-none focus:border-indigo-500/50 transition-colors"
+              placeholder="투자금액"
             />
           </div>
-          
+        </div>
+
+        {/* Parameters */}
+        <div className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-3">
             <SliderItem label="STEP (진입 간격)" value={step} onChange={setStep} min={0.1} max={15} step={0.1} unit="원" accentColor="accent-indigo-500" />
             <SliderItem label="SPLIT (분할 수)" value={split} onChange={setSplit} min={1} max={20} step={1} unit="분할" accentColor="accent-indigo-500" />
@@ -191,13 +187,13 @@ export default function BacktestPage() {
         <button 
           onClick={runBacktest}
           disabled={loading}
-          className="w-full py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800/50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 active:scale-95 mt-1"
+          className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800/50 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 active:scale-95 mt-0.5"
         >
           {loading ? (
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
             <>
-              <Play size={16} fill="currentColor" />
+              <Play size={14} fill="currentColor" />
               백테스팅 시작
             </>
           )}
