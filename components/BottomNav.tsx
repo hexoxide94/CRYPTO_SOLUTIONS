@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, CandlestickChart, Bitcoin, PenLine, BarChart2 } from "lucide-react";
+import { Activity, CandlestickChart, Bitcoin, PenLine, BarChart2 } from "lucide-react";
 
 const TABS = [
-  { href: "/home", label: "홈", icon: Home },
+  { href: "/backtest", label: "백테스팅", icon: Activity },
   { href: "/kimp", label: "김프매매", icon: CandlestickChart },
   { href: "/coin-info", label: "코인정보", icon: Bitcoin },
   { href: "/asset-record", label: "자산기록", icon: PenLine },
