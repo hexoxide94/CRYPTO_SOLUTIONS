@@ -131,13 +131,13 @@ export function getKisMarketInfo() {
 }
 
 // ─── KIS 달러선물 조회 ───────────────────────────────────────────────
-export async function fetchKisRate(token: string, marketCode: string): Promise<number | null> {
+export async function fetchKisRate(token: string, marketCode: string, symbol: string = "A75605"): Promise<number | null> {
   const appkey = process.env.KIS_APP_KEY!;
   const appsecret = process.env.KIS_APP_SECRET!;
 
   const url = new URL("https://openapi.koreainvestment.com:9443/uapi/domestic-futureoption/v1/quotations/inquire-price");
   url.searchParams.set("FID_COND_MRKT_DIV_CODE", marketCode);
-  url.searchParams.set("FID_INPUT_ISCD", "A75605");
+  url.searchParams.set("FID_INPUT_ISCD", symbol);
 
   try {
     const res = await fetch(url.toString(), {
@@ -173,13 +173,13 @@ export async function fetchKisRate(token: string, marketCode: string): Promise<n
 }
 
 // ─── KIS 달러선물 과거 데이터 조회 (Daily) ───────────────────────────
-export async function fetchKisHistory(token: string, marketCode: string, periodCode: "D" | "W" | "M" = "D"): Promise<unknown> {
+export async function fetchKisHistory(token: string, marketCode: string, symbol: string = "A75605", periodCode: "D" | "W" | "M" = "D"): Promise<unknown> {
   const appkey = process.env.KIS_APP_KEY!;
   const appsecret = process.env.KIS_APP_SECRET!;
 
   const url = new URL("https://openapi.koreainvestment.com:9443/uapi/domestic-futureoption/v1/quotations/inquire-daily-chartprice");
   url.searchParams.set("FID_COND_MRKT_DIV_CODE", marketCode);
-  url.searchParams.set("FID_INPUT_ISCD", "A75605"); // USD Futures
+  url.searchParams.set("FID_INPUT_ISCD", symbol); // USD Futures
   url.searchParams.set("FID_PERIOD_DIV_CODE", periodCode);
   url.searchParams.set("FID_ORG_ADJ_PRC", "0");
 
@@ -211,13 +211,13 @@ export async function fetchKisHistory(token: string, marketCode: string, periodC
 }
 
 // ─── KIS 달러선물 과거 데이터 조회 (Minute) ──────────────────────────
-export async function fetchKisMinuteHistory(token: string, marketCode: string): Promise<unknown> {
+export async function fetchKisMinuteHistory(token: string, marketCode: string, symbol: string = "A75605"): Promise<unknown> {
   const appkey = process.env.KIS_APP_KEY!;
   const appsecret = process.env.KIS_APP_SECRET!;
 
   const url = new URL("https://openapi.koreainvestment.com:9443/uapi/domestic-futureoption/v1/quotations/inquire-time-itemchartprice");
   url.searchParams.set("FID_COND_MRKT_DIV_CODE", marketCode);
-  url.searchParams.set("FID_INPUT_ISCD", "A75605"); // USD Futures
+  url.searchParams.set("FID_INPUT_ISCD", symbol); // USD Futures
   url.searchParams.set("FID_ETC_CLS_CODE", "");
   url.searchParams.set("FID_PW_DATA_INCU_YN", "Y");
 

@@ -16,6 +16,7 @@ interface KisMinuteData {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const range = searchParams.get("range") || "1w";
+  const symbol = searchParams.get("symbol") || "A75605";
 
   try {
     const token = await getKisToken();
@@ -56,8 +57,8 @@ export async function GET(request: Request) {
     const [coinoneRes, kisHistory] = await Promise.all([
       fetch(coinoneUrl, { cache: "no-store" }),
       useMinuteKis 
-        ? fetchKisMinuteHistory(token, kisMarketCode) as Promise<KisMinuteData[]>
-        : fetchKisHistory(token, kisMarketCode, "D") as Promise<KisDailyData[]>
+        ? fetchKisMinuteHistory(token, kisMarketCode, symbol) as Promise<KisMinuteData[]>
+        : fetchKisHistory(token, kisMarketCode, symbol, "D") as Promise<KisDailyData[]>
     ]);
 
     if (!coinoneRes.ok) throw new Error("Coinone API failed");

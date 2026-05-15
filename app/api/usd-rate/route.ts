@@ -24,13 +24,16 @@ async function fetchFallbackRate(): Promise<number | null> {
 }
 
 // ─── Route Handler ───────────────────────────────────────────────────
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const symbol = searchParams.get("symbol") || "A75605";
+  
   const { marketCode, icon, session } = getKisMarketInfo();
 
   try {
     const token = await getKisToken();
     if (token) {
-      const kisRate = await fetchKisRate(token, marketCode);
+      const kisRate = await fetchKisRate(token, marketCode, symbol);
       if (kisRate !== null) {
         lastRate = kisRate;
         lastIcon = icon;
@@ -40,6 +43,7 @@ export async function GET() {
           source: "kis",
           session: session,
           marketCode: marketCode,
+          symbol: symbol,
           timestamp: new Date().toISOString()
         });
       }

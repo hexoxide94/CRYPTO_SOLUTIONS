@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUsdtPrices } from "@/lib/usdt-context";
+import { useSettings } from "@/lib/settings-context";
 import {
   ComposedChart, Scatter, Line, XAxis, YAxis, CartesianGrid,
   ResponsiveContainer
@@ -223,6 +224,7 @@ interface MarketPoint {
 // ═══════════════════════════════════════════════════════════════
 export default function KimpPage() {
   const { usdt: usdtPrices } = useUsdtPrices();
+  const { usdSymbol } = useSettings();
   const [trades, setTrades]               = useState<KimpTrade[]>([]);
   const [loading, setLoading]             = useState(true);
   const [sheetOpen, setSheetOpen]         = useState(false);
@@ -254,7 +256,7 @@ export default function KimpPage() {
   const fetchMarketChartData = useCallback(async () => {
     setMarketLoading(true);
     try {
-      const res = await fetch(`/api/kimp/chart-data?range=${chartRange}`);
+      const res = await fetch(`/api/kimp/chart-data?range=${chartRange}&symbol=${usdSymbol}`);
       const data = await res.json();
       if (data.chartData) setMarketData(data.chartData);
     } catch (err) {
@@ -262,7 +264,7 @@ export default function KimpPage() {
     } finally {
       setMarketLoading(false);
     }
-  }, [chartRange]);
+  }, [chartRange, usdSymbol]);
 
   useEffect(() => {
     fetchMarketChartData();

@@ -1,10 +1,12 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { Sun, Moon, ChevronDown } from "lucide-react";
+import { Sun, Moon, ChevronDown, Menu } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useUsdtPrices } from "@/lib/usdt-context";
+import { useSettings } from "@/lib/settings-context";
 import AlertPanel from "./AlertPanel";
+import SettingsSidebar from "./SettingsSidebar";
 
 // ─── 상수 ────────────────────────────────────────────────────────
 const COINONE_WS_URL = "wss://stream.coinone.co.kr";
@@ -16,11 +18,13 @@ const FX_POLL_INTERVAL_MS = 30_000;
 export default function TopBar() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted]     = useState(false);
-  const { usdt, setUsdt }         = useUsdtPrices(); // Note: Variable name 'usdt' is kept for context consistency but holds USDC data
+  const { usdt, setUsdt }         = useUsdtPrices();
+  const { kimpMode, usdSymbol }   = useSettings();
   const [usdKrw, setUsdKrw]       = useState<number | null>(null);
   const [usdIcon, setUsdIcon]       = useState<string>("☀️");
   const [usdStatus, setUsdStatus] = useState<"loading" | "ok" | "error">("loading");
   const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [displayMode, setDisplayMode] = useState<"percent" | "krw">("percent");
 
   const wsRef      = useRef<WebSocket | null>(null);
@@ -31,7 +35,7 @@ export default function TopBar() {
   // ── 환율 (USD Futures) ────────────────────────────────────────
   const fetchFx = useCallback(async () => {
     try {
-      const res = await fetch("/api/usd-rate");
+      const res = await fetch(`/api/usd-rate?symbol=${usdSymbol}`);
       if (!res.ok) { setUsdStatus("error"); return; }
       const data = await res.json();
       if (typeof data?.rate === "number") {
@@ -44,7 +48,7 @@ export default function TopBar() {
     } catch {
       setUsdStatus("error");
     }
-  }, []);
+  }, [usdSymbol]);
 
   // ── Coinone WebSocket (USDC) ──────────────────────────────────
   const connectWs = useCallback(() => {
@@ -90,13 +94,17 @@ export default function TopBar() {
     };
   }, [setUsdt]);
 
-  // ── 5초마다 단위 전환 ──────────────────────────────────────────
+  // ── Kimp 단위 전환 ──────────────────────────────────────────
   useEffect(() => {
+    if (kimpMode !== "auto") {
+      setDisplayMode(kimpMode);
+      return;
+    }
     const timer = setInterval(() => {
       setDisplayMode(prev => prev === "percent" ? "krw" : "percent");
-    }, 5000);
+    }, 2500); // 2.5초 간격
     return () => clearInterval(timer);
-  }, []);
+  }, [kimpMode]);
 
   useEffect(() => {
     activeRef.current = true;
@@ -146,14 +154,25 @@ export default function TopBar() {
         }
       `}</style>
       <header
-        className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-md border-b border-border flex items-center px-3 w-full max-w-md mx-auto cursor-pointer hover:bg-muted/50 transition-all active:scale-[0.98]"
+        className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-md border-b border-border flex items-center px-3 w-full max-w-md mx-auto cursor-pointer hover:bg-muted/50 transition-all"
         style={{ height: "var(--topbar-h, 48px)" }}
         onClick={(e) => {
-          const isDarkBtn = (e.target as HTMLElement).closest('button[aria-label="다크모드 토글"]');
-          if (isDarkBtn) return;
+          const isMenuBtn = (e.target as HTMLElement).closest('.menu-btn');
+          if (isMenuBtn) return;
           setIsAlertOpen(v => !v);
         }}
       >
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsSettingsOpen(true);
+          }}
+          className="menu-btn p-1.5 mr-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+          aria-label="설정 메뉴 열기"
+        >
+          <Menu size={20} />
+        </button>
+
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           {/* KP (Kimp) */}
           <div className="flex items-center shrink-0">
@@ -207,19 +226,9 @@ export default function TopBar() {
             <ChevronDown size={12} className={`text-muted-foreground transition-transform duration-300 ${isAlertOpen ? "rotate-180" : ""}`} />
           </div>
         </div>
-
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setTheme(theme === "dark" ? "light" : "dark");
-          }}
-          className="ml-1 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
-          aria-label="다크모드 토글"
-        >
-          {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-        </button>
       </header>
       <AlertPanel isOpen={isAlertOpen} onClose={() => setIsAlertOpen(false)} />
+      <SettingsSidebar isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </>
   );
 }
