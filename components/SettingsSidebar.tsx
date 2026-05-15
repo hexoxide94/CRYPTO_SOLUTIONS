@@ -1,8 +1,8 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { Sun, Moon, X, Monitor, Percent, Coins, CalendarDays, ArrowRightLeft } from "lucide-react";
-import { useSettings, KimpMode, UsdSymbol } from "@/lib/settings-context";
+import { Sun, Moon, X, Percent, Coins, CalendarDays, ArrowRightLeft } from "lucide-react";
+import { useSettings, KimpMode } from "@/lib/settings-context";
 import { cn } from "@/lib/utils";
 
 interface SettingsSidebarProps {

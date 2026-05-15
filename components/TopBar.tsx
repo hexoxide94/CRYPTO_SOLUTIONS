@@ -1,6 +1,5 @@
 "use client";
 
-import { useTheme } from "next-themes";
 import { Sun, Moon, ChevronDown, Menu } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useUsdtPrices } from "@/lib/usdt-context";
@@ -16,7 +15,6 @@ const FX_POLL_INTERVAL_MS = 30_000;
 
 // ════════════════════════════════════════════════════════════════
 export default function TopBar() {
-  const { theme, setTheme } = useTheme();
   const [mounted, setMounted]     = useState(false);
   const { usdt, setUsdt }         = useUsdtPrices();
   const { kimpMode, usdSymbol }   = useSettings();
