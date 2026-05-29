@@ -26,7 +26,15 @@ export default function AlertPanel({ isOpen, onClose }: { isOpen: boolean; onClo
     if ("serviceWorker" in navigator && "PushManager" in window) {
       navigator.serviceWorker.ready.then(reg => {
         reg.pushManager.getSubscription().then(sub => {
-          if (sub) setPushEnabled(true);
+          if (sub) {
+            setPushEnabled(true);
+            // 백엔드 DB에 구독 정보가 지워졌을 수 있으므로 마운트 시 자동 동기화
+            fetch("/api/push/subscribe", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(sub)
+            }).catch(console.error);
+          }
         });
       });
     }
