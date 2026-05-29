@@ -56,11 +56,17 @@ async function sendWebPushAlert(title: string, body: string): Promise<void> {
 }
 
 export async function GET(request: Request) {
-  // 1. Cron 인증 검증
+  // 1. Cron 인증 검증 (헤더 또는 쿼리 파라미터 지원)
+  const { searchParams } = new URL(request.url);
   const authHeader = request.headers.get("Authorization");
+  const querySecret = searchParams.get("secret");
   const cronSecret = process.env.CRON_SECRET;
 
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  const isAuthorized = cronSecret && (
+    authHeader === `Bearer ${cronSecret}` || querySecret === cronSecret
+  );
+
+  if (!isAuthorized) {
     console.error("[KIMP Alerts] 인증 실패: CRON_SECRET 불일치");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
