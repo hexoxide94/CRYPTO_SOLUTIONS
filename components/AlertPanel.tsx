@@ -81,24 +81,21 @@ export default function AlertPanel({ isOpen, onClose }: { isOpen: boolean; onClo
       if (reg.waiting) {
         console.log("이전 워커 정리 중...");
         reg.waiting.postMessage({ type: "SKIP_WAITING" });
-        await new Promise(res => setTimeout(res, 1000));
       }
 
       // 서비스 워커가 활성화될 때까지 기다리는 로직
-      if (!reg.active) {
-        console.log("서비스 워커 활성화 대기 중...");
-        let retries = 0;
-        while (!reg.active && retries < 20) { // 최대 10초 대기
-          await new Promise(res => setTimeout(res, 500));
-          reg = await navigator.serviceWorker.getRegistration() || reg;
-          retries++;
-        }
-        
-        if (!reg.active) {
-          setLoading(false);
-          alert(`서비스 워커 활성화 실패. (현재 상태: installing=${!!reg.installing}, waiting=${!!reg.waiting})`);
-          return;
-        }
+      console.log("서비스 워커 활성화 대기 중...");
+      try {
+        reg = await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise<ServiceWorkerRegistration>((_, reject) => 
+            setTimeout(() => reject(new Error("활성화 대기 시간 초과")), 10000)
+          )
+        ]);
+      } catch (err) {
+        setLoading(false);
+        alert(`서비스 워커 활성화 실패: ${err instanceof Error ? err.message : String(err)} (installing=${!!reg?.installing}, waiting=${!!reg?.waiting})`);
+        return;
       }
 
       // 구독 정보 가져오기 (VAPID 키 필요)
@@ -316,7 +313,6 @@ export default function AlertPanel({ isOpen, onClose }: { isOpen: boolean; onClo
           <div className="mb-5 flex items-center justify-between p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900">
             <div className="flex flex-col">
               <span className="text-[12px] font-bold text-indigo-700 dark:text-indigo-400">네이티브 푸시 알림</span>
-              <span className="text-[10px] text-indigo-500 dark:text-indigo-500/80">텔레그램 대신 기기로 직접 알림 받기</span>
             </div>
             {pushEnabled ? (
               <span className="text-[11px] font-bold text-emerald-500 flex items-center gap-1"><Check size={12}/> 활성화됨</span>
