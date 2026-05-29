@@ -94,7 +94,9 @@ export async function GET(request: Request) {
     if (!token) {
       return NextResponse.json({ error: "KIS Token 발급 실패" }, { status: 500 });
     }
-    const usd = await fetchKisRate(token, marketCode);
+    const { getFuturesMonths } = await import("@/lib/futures");
+    const currentSymbol = getFuturesMonths().currentSymbol;
+    const usd = await fetchKisRate(token, marketCode, currentSymbol);
     if (!usd) {
       return NextResponse.json({ error: "KIS USD 조회 실패" }, { status: 500 });
     }
