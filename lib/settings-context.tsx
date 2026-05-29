@@ -1,29 +1,39 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { getFuturesMonths, FuturesMonthInfo } from "./futures";
 
 export type KimpMode = "auto" | "percent" | "krw";
-export type UsdSymbol = "A75605" | "A75606";
 
 interface SettingsContextType {
   kimpMode: KimpMode;
   setKimpMode: (mode: KimpMode) => void;
-  usdSymbol: UsdSymbol;
-  setUsdSymbol: (symbol: UsdSymbol) => void;
+  usdSymbol: string;
+  setUsdSymbol: (symbol: string) => void;
+  futuresInfo: FuturesMonthInfo | null;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [kimpMode, setKimpMode] = useState<KimpMode>("auto");
-  const [usdSymbol, setUsdSymbol] = useState<UsdSymbol>("A75605");
+  const [usdSymbol, setUsdSymbol] = useState<string>("");
+  const [futuresInfo, setFuturesInfo] = useState<FuturesMonthInfo | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const savedKimpMode = localStorage.getItem("kimpMode") as KimpMode;
-    const savedUsdSymbol = localStorage.getItem("usdSymbol") as UsdSymbol;
+    const info = getFuturesMonths();
+    setFuturesInfo(info);
+    
+    let savedUsdSymbol = localStorage.getItem("usdSymbol");
+    // If the saved symbol is not the current or next active month (e.g. expired A75605), reset it (automatic rollover)
+    if (!savedUsdSymbol || (savedUsdSymbol !== info.currentSymbol && savedUsdSymbol !== info.nextSymbol)) {
+      savedUsdSymbol = info.currentSymbol;
+    }
+    
     if (savedKimpMode) setKimpMode(savedKimpMode);
-    if (savedUsdSymbol) setUsdSymbol(savedUsdSymbol);
+    setUsdSymbol(savedUsdSymbol);
     setMounted(true);
   }, []);
 
@@ -34,13 +44,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, [kimpMode, mounted]);
 
   useEffect(() => {
-    if (mounted) {
+    if (mounted && usdSymbol) {
       localStorage.setItem("usdSymbol", usdSymbol);
     }
   }, [usdSymbol, mounted]);
 
   return (
-    <SettingsContext.Provider value={{ kimpMode, setKimpMode, usdSymbol, setUsdSymbol }}>
+    <SettingsContext.Provider value={{ kimpMode, setKimpMode, usdSymbol, setUsdSymbol, futuresInfo }}>
       {children}
     </SettingsContext.Provider>
   );

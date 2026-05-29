@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getFuturesMonths } from "@/lib/futures";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ async function fetchFallbackRate(): Promise<number | null> {
 // ─── Route Handler ───────────────────────────────────────────────────
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const symbol = searchParams.get("symbol") || "A75605";
+  const symbol = searchParams.get("symbol") || getFuturesMonths().currentSymbol;
   
   const { marketCode, icon, session } = getKisMarketInfo();
 

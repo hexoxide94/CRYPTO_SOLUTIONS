@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getKisToken, fetchKisHistory, fetchKisMinuteHistory } from "@/lib/kis";
+import { getFuturesMonths } from "@/lib/futures";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ interface KisMinuteData {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const range = searchParams.get("range") || "1w";
-  const symbol = searchParams.get("symbol") || "A75605";
+  const symbol = searchParams.get("symbol") || getFuturesMonths().currentSymbol;
 
   try {
     const token = await getKisToken();

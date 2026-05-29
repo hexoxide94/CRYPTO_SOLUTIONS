@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUsdtPrices } from "@/lib/usdt-context";
+import { useSettings } from "@/lib/settings-context";
 import { RefreshCcw, Plus, X, Trash2, Edit2, Download } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
@@ -275,6 +276,7 @@ const DomesticGroup = ({ keys, totalObj, depObj, updateTotal, updateDep, visible
 // ═══════════════════════════════════════════════════════════════
 export default function AssetRecordPage() {
   const { usdt } = useUsdtPrices();
+  const { usdSymbol } = useSettings();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
 
@@ -356,12 +358,12 @@ export default function AssetRecordPage() {
 
   const fetchRates = useCallback(async () => {
     try {
-      const r1 = await fetch('/api/usd-rate').then(res => res.json());
+      const r1 = await fetch(`/api/usd-rate?symbol=${usdSymbol}`).then(res => res.json());
       if (r1.rate) updateRates({ usd: String(Math.floor(r1.rate)) });
       const r2 = await fetch('/api/stock-price?symbol=005930.KS').then(res => res.json());
       if (r2.price) updateRates({ samsungPrice: String(r2.price) });
     } catch { /* ignore */ }
-  }, []);
+  }, [usdSymbol]);
 
   useEffect(() => {
     if (isFormOpen) fetchRates();

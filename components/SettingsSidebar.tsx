@@ -12,7 +12,7 @@ interface SettingsSidebarProps {
 
 export default function SettingsSidebar({ isOpen, onClose }: SettingsSidebarProps) {
   const { theme, setTheme } = useTheme();
-  const { kimpMode, setKimpMode, usdSymbol, setUsdSymbol } = useSettings();
+  const { kimpMode, setKimpMode, usdSymbol, setUsdSymbol, futuresInfo } = useSettings();
 
   return (
     <>
@@ -116,50 +116,54 @@ export default function SettingsSidebar({ isOpen, onClose }: SettingsSidebarProp
             <div className="flex items-center justify-between px-1">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">달러 선물 월물 선택</h3>
               <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                {usdSymbol === "A75605" ? "당월물" : "차월물"}
+                {futuresInfo && usdSymbol === futuresInfo.nextSymbol ? "차월물" : "당월물"}
               </span>
             </div>
-            <div className="space-y-2">
-              <button
-                onClick={() => setUsdSymbol("A75605")}
-                className={cn(
-                  "w-full flex items-center justify-between p-4 rounded-xl border transition-all",
-                  usdSymbol === "A75605" 
-                    ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 font-medium" 
-                    : "bg-muted/30 border-transparent text-muted-foreground hover:bg-muted"
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <CalendarDays size={18} />
-                  <div className="text-left">
-                    <p className="text-sm">A75605</p>
-                    <p className="text-[10px] opacity-70">5월물 (당월물)</p>
+            {futuresInfo ? (
+              <div className="space-y-2">
+                <button
+                  onClick={() => setUsdSymbol(futuresInfo.currentSymbol)}
+                  className={cn(
+                    "w-full flex items-center justify-between p-4 rounded-xl border transition-all",
+                    usdSymbol === futuresInfo.currentSymbol 
+                      ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 font-medium" 
+                      : "bg-muted/30 border-transparent text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <CalendarDays size={18} />
+                    <div className="text-left">
+                      <p className="text-sm font-semibold">{futuresInfo.currentSymbol}</p>
+                      <p className="text-[10px] opacity-70">{futuresInfo.currentLabel} (당월물)</p>
+                    </div>
                   </div>
-                </div>
-                {usdSymbol === "A75605" && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
-              </button>
+                  {usdSymbol === futuresInfo.currentSymbol && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
+                </button>
 
-              <button
-                onClick={() => setUsdSymbol("A75606")}
-                className={cn(
-                  "w-full flex items-center justify-between p-4 rounded-xl border transition-all",
-                  usdSymbol === "A75606" 
-                    ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 font-medium" 
-                    : "bg-muted/30 border-transparent text-muted-foreground hover:bg-muted"
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <CalendarDays size={18} />
-                  <div className="text-left">
-                    <p className="text-sm">A75606</p>
-                    <p className="text-[10px] opacity-70">6월물 (차월물)</p>
+                <button
+                  onClick={() => setUsdSymbol(futuresInfo.nextSymbol)}
+                  className={cn(
+                    "w-full flex items-center justify-between p-4 rounded-xl border transition-all",
+                    usdSymbol === futuresInfo.nextSymbol 
+                      ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 font-medium" 
+                      : "bg-muted/30 border-transparent text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <CalendarDays size={18} />
+                    <div className="text-left">
+                      <p className="text-sm font-semibold">{futuresInfo.nextSymbol}</p>
+                      <p className="text-[10px] opacity-70">{futuresInfo.nextLabel} (차월물)</p>
+                    </div>
                   </div>
-                </div>
-                {usdSymbol === "A75606" && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
-              </button>
-            </div>
+                  {usdSymbol === futuresInfo.nextSymbol && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
+                </button>
+              </div>
+            ) : (
+              <div className="text-center text-xs text-muted-foreground py-4">계산 중...</div>
+            )}
             <p className="text-[10px] text-muted-foreground px-1 leading-relaxed">
-              * 월물 교체 시기가 되면 수동으로 변경하여 확인하실 수 있습니다.
+              * 만기일(매월 세 번째 월요일 11:30 AM KST)이 지나면 자동으로 다음 월물로 롤오버됩니다.
             </p>
           </section>
 
