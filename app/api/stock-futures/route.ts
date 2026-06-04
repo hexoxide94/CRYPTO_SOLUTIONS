@@ -33,6 +33,28 @@ async function fetchYahooStockPrice(symbol: string): Promise<number | null> {
   }
 }
 
+async function fetchYahooStockData(symbol: string): Promise<{ price: number; changePercent: number } | null> {
+  try {
+    const res = await fetch(
+      `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`,
+      {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; KIMP-App/1.0)" },
+        next: { revalidate: 30 } // 30 seconds cache
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const meta = data?.chart?.result?.[0]?.meta;
+    const price = meta?.regularMarketPrice ?? 0;
+    const prevClose = meta?.previousClose ?? 0;
+    const changePercent = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
+    return { price, changePercent };
+  } catch (error) {
+    console.error(`[Yahoo Stock Data Fetch Error] ${symbol}:`, error);
+    return null;
+  }
+}
+
 async function fetchGateTickers(): Promise<Record<string, { last: number; fundingRate: number }> | null> {
   try {
     const res = await fetch("https://api.gateio.ws/api/v4/futures/usdt/tickers", {
@@ -85,8 +107,10 @@ export async function GET() {
       { name: "현대차", kisSymbol: "005380", yahooSymbol: "005380.KS", contract: "HYUNDAI_USDT" }
     ];
 
-    const [gateTickers, ...stockPrices] = await Promise.all([
+    const [gateTickers, ewyData, muData, ...stockPrices] = await Promise.all([
       fetchGateTickers(),
+      fetchYahooStockData("EWY"),
+      fetchYahooStockData("MU"),
       ...stocksToFetch.map(async (s) => {
         let price: number | null = null;
         if (token) {
@@ -125,6 +149,10 @@ export async function GET() {
     return NextResponse.json({
       timestamp: new Date().toISOString(),
       usdRate,
+      references: {
+        EWY: ewyData,
+        MU: muData
+      },
       items
     });
 
