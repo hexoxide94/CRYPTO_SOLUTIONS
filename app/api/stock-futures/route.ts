@@ -46,7 +46,7 @@ async function fetchYahooStockData(symbol: string): Promise<{ price: number; cha
     const data = await res.json();
     const meta = data?.chart?.result?.[0]?.meta;
     const price = meta?.regularMarketPrice ?? 0;
-    const prevClose = meta?.previousClose ?? 0;
+    const prevClose = meta?.chartPreviousClose ?? 0;
     const changePercent = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
     return { price, changePercent };
   } catch (error) {
