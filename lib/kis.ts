@@ -247,3 +247,49 @@ export async function fetchKisMinuteHistory(token: string, marketCode: string, s
     return null;
   }
 }
+
+// ─── KIS 국내주식 현재가 조회 ───────────────────────────────────────────
+export async function fetchKisStockPrice(token: string, symbol: string): Promise<number | null> {
+  const appkey = process.env.KIS_APP_KEY;
+  const appsecret = process.env.KIS_APP_SECRET;
+  if (!appkey || !appsecret) {
+    console.error("[Stock Price Error] API Key/Secret is missing in ENV");
+    return null;
+  }
+
+  const url = new URL("https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/quotations/inquire-price");
+  url.searchParams.set("FID_COND_MRKT_DIV_CODE", "J");
+  url.searchParams.set("FID_INPUT_ISCD", symbol);
+
+  try {
+    const res = await fetch(url.toString(), {
+      headers: {
+        "content-type": "application/json",
+        "authorization": `Bearer ${token}`,
+        "appkey": appkey,
+        "appsecret": appsecret,
+        "tr_id": "FHKST01010100",
+        "custtype": "P",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+      },
+      cache: "no-store",
+    });
+    const data = await res.json();
+
+    if (data?.rt_cd !== "0") {
+      console.error("[KIS Stock API Error]", data?.msg1, data?.msg_cd);
+      return null;
+    }
+
+    const price = data?.output?.stck_prpr;
+    if (!price) {
+      console.warn("[KIS Stock Data Warning] Empty price in output:", data?.output);
+      return null;
+    }
+
+    return parseFloat(price);
+  } catch (error) {
+    console.error("[KIS Stock Fetch Error]", error);
+    return null;
+  }
+}

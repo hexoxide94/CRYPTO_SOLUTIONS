@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, CandlestickChart, Bitcoin, PenLine, BarChart2 } from "lucide-react";
+import { Activity, CandlestickChart, Bitcoin, PenLine, TrendingUp } from "lucide-react";
 
 const TABS = [
   { href: "/backtest", label: "백테스팅", icon: Activity },
   { href: "/kimp", label: "김프매매", icon: CandlestickChart },
   { href: "/coin-info", label: "코인정보", icon: Bitcoin },
   { href: "/asset-record", label: "자산기록", icon: PenLine },
-  { href: "/asset-chart", label: "자산그래프", icon: BarChart2 },
+  { href: "/stock-futures", label: "주식선물", icon: TrendingUp },
 ];
 
 export default function BottomNav() {
